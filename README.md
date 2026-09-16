@@ -17,7 +17,47 @@ https://doi.org/10.1093/bib/bbad157
 
 ## 现状
 
-规划阶段。技术方案见 [docs/01_技术规划.md](docs/01_技术规划.md)。
+骨架阶段（P0 已完成）。算法尚未实现，但构建链路已经通：
+Rust workspace → PyO3 绑定 → maturin wheel → `pip install` → `import costal_plus`。
+
+- 技术方案：[docs/01_技术规划.md](docs/01_技术规划.md)
+- 原版 profile 的真实数字：[docs/02_原版profile报告.md](docs/02_原版profile报告.md)
+
+## 开发环境
+
+```bash
+# 1. Rust（本仓库用 stable，rust-toolchain.toml 已固定 channel 与 target）
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# 2. 装进当前 python 环境并自检
+pip install maturin
+pip install -e . --no-build-isolation
+python -c "import costal_plus; print(costal_plus.hello())"
+costal-plus info
+
+# 3. 一条龙：fmt + clippy + cargo test + pip install -e . + pytest
+scripts/dev.sh
+
+# 4. 出 wheel
+scripts/build-wheel.sh                       # 当前平台
+scripts/build-wheel.sh x86_64-unknown-linux-gnu --zig   # 交叉
+```
+
+> **macOS 的坑**：`conda` 发的 python 常常是 x86_64 版（在 Rosetta 下跑）。
+> 装扩展时 maturin 会按解释器的架构去编译，所以需要
+> `rustup target add x86_64-apple-darwin`（`rust-toolchain.toml` 里已列上）。
+> 但**性能测试必须用原生 arm64 解释器**，Rosetta 下的数字不作数。
+
+## 复现 profile
+
+```bash
+python -m venv .venv-arm64 && . .venv-arm64/bin/activate     # 必须是原生 arm64 解释器
+pip install numpy scipy igraph leidenalg hnswlib scikit-learn pandas numba fcsparser phenograph umap-learn
+python bench/fetch_reference.py        # 拉原版 CosTaL 源码 + Levine_32dim 数据集
+python bench/profile_costal.py         # 分阶段计时，结果写 bench/out/profile.json
+python bench/check_tanimoto_semantics.py
+```
 
 ## 目标机器
 

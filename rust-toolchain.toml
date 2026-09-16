@@ -1,0 +1,6 @@
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+# 主力目标是 macos-arm64 与 linux-x86_64；x86_64-apple-darwin 是因为本机
+# 常用的 anaconda 解释器是 Intel 版（跑在 Rosetta 下），装扩展时需要它。
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]

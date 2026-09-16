@@ -10,3 +10,4 @@ build/
 .venv/
 bench/out/
 .venv-arm64/
+bench/data/
