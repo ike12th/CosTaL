@@ -1,0 +1,89 @@
+{
+  "env": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "cpu_count": 8,
+    "numpy_blas": "openblas64"
+  },
+  "results": [
+    {
+      "n_cells": 10000,
+      "n_dim": 32,
+      "k": 10,
+      "ijv_file_mb": 8.7,
+      "n_edges": 78521,
+      "n_clusters": 13,
+      "stages": {
+        "S0a load fcs": 0.144245917000001,
+        "S0b pp (arcsinh/5)": 0.007465082999999595,
+        "S1 save_as_ijv": 0.5526138340000006,
+        "S2 knn[blas_blocked]": 2.1535354159999986,
+        "S2 knn[hnsw]": 0.3708508749999986,
+        "S2 knn[bruteforce]": 22.62429625,
+        "S2b write .clu (harness)": 0.07175174999999712,
+        "S3 build_tani_graph": 0.1377714999999995,
+        "S4 leiden (n_iter=10)": 2.096089333000002
+      },
+      "decomposed_S3": {
+        "  [d] read+split .clu": 0.009033917000003555,
+        "  [d] parse to py lists": 0.017783749999999543,
+        "  [d] tanimoto weights": 0.032269208000002436,
+        "  [d] scipy sym/prune": 0.01662841699999973,
+        "  [d] igraph build": 0.017714250000004483
+      }
+    },
+    {
+      "n_cells": 50000,
+      "n_dim": 32,
+      "k": 10,
+      "ijv_file_mb": 44.7,
+      "n_edges": 400311,
+      "n_clusters": 17,
+      "stages": {
+        "S0a load fcs": 0.09681762499999991,
+        "S0b pp (arcsinh/5)": 0.022662291000003165,
+        "S1 save_as_ijv": 1.7775310829999995,
+        "S2 knn[blas_blocked]": 40.66861924999999,
+        "S2 knn[hnsw]": 1.9795491659999982,
+        "S2 knn[bruteforce]": 74.97232400000001,
+        "S2b write .clu (harness)": 0.6630674170000077,
+        "S3 build_tani_graph": 0.9904178750000199,
+        "S4 leiden (n_iter=10)": 16.44669279200002
+      },
+      "decomposed_S3": {
+        "  [d] read+split .clu": 0.2484762910000029,
+        "  [d] parse to py lists": 0.12252004100000136,
+        "  [d] tanimoto weights": 0.21290095800000586,
+        "  [d] scipy sym/prune": 0.10417920800000502,
+        "  [d] igraph build": 0.11457920899999863
+      }
+    },
+    {
+      "n_cells": 265627,
+      "n_dim": 32,
+      "k": 10,
+      "ijv_file_mb": 243.8,
+      "n_edges": 2119067,
+      "n_clusters": 17,
+      "stages": {
+        "S0a load fcs": 0.13497537500001044,
+        "S0b pp (arcsinh/5)": 0.22947175000001607,
+        "S1 save_as_ijv": 11.43111379199999,
+        "S2 knn[blas_blocked]": 1098.687712209,
+        "S2 knn[hnsw]": 13.4794939169999,
+        "S2b write .clu (harness)": 2.2280148330000884,
+        "S3 build_tani_graph": 5.612697208999862,
+        "S4 leiden (n_iter=10)": 102.68195575000004
+      },
+      "decomposed_S3": {
+        "  [d] read+split .clu": 0.996580042000005,
+        "  [d] parse to py lists": 0.9360588340000504,
+        "  [d] tanimoto weights": 1.1637035000001106,
+        "  [d] scipy sym/prune": 0.6453512919999866,
+        "  [d] igraph build": 1.7842184159999306
+      }
+    }
+  ]
+}

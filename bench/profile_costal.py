@@ -89,8 +89,12 @@ def load_levine(n: int | None, seed: int = 0):
 # --------------------------------------------------------------------------
 # kNN 的三种测法
 # --------------------------------------------------------------------------
-def knn_blas_blocked(x: np.ndarray, k: int, block: int = 1024):
-    """分块 BLAS matmul + argpartition。返回 (idx, cos) 且不含自身。"""
+def knn_blas_blocked(x: np.ndarray, k: int, block: int = 256):
+    """分块 BLAS matmul + argpartition。返回 (idx, cos) 且不含自身。
+
+    block 取 256 而不是更大：`argpartition` 会分配一个 `block x n` 的 int64
+    中间数组，265k 细胞下 block=1024 就是 2.2 GB/块，16 GB 的机器会开始换页，
+    测出来的就不是算法时间而是 swap 时间。"""
     xn = normalize(x, norm="l2", axis=1).astype(np.float32, copy=False)
     xn = np.ascontiguousarray(xn)
     n = xn.shape[0]
@@ -100,11 +104,13 @@ def knn_blas_blocked(x: np.ndarray, k: int, block: int = 1024):
         e = min(s + block, n)
         sim = xn[s:e] @ xn.T                      # (b, n)
         sim[np.arange(e - s), np.arange(s, e)] = -np.inf   # 去掉自身
-        part = np.argpartition(-sim, k - 1, axis=1)[:, :k]
+        np.negative(sim, out=sim)                 # 原地取负，省一份 b x n
+        part = np.argpartition(sim, k - 1, axis=1)[:, :k]
         vals = np.take_along_axis(sim, part, axis=1)
-        order = np.argsort(-vals, axis=1)
+        order = np.argsort(vals, axis=1)
         idx[s:e] = np.take_along_axis(part, order, axis=1)
-        cos[s:e] = np.take_along_axis(vals, order, axis=1)
+        cos[s:e] = -np.take_along_axis(vals, order, axis=1)
+        del sim, part, vals, order
     return idx, cos
 
 
@@ -216,7 +222,7 @@ def run(n: int | None, k: int, knn_methods: list[str], tmp: Path) -> dict:
             r_idx, r_cos = fn(x, k)
         if idx is None:          # 后续阶段统一用第一个方法的结果
             idx, cos = r_idx, r_cos
-    TIMINGS.update({f"S2 knn[{m}]": v for m, v in knn_times.items()})
+    TIMINGS.update(knn_times)
 
     clu = tmp / f"prof_{tag}.clu"
     with stage("S2b write .clu (harness)"):

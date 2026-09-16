@@ -8,6 +8,9 @@ __pycache__/
 dist/
 build/
 .venv/
-bench/out/
+bench/out/*
+!bench/out/profile.json
+!bench/out/split_matmul_topk.log
+!bench/out/tanimoto_semantics.log
 .venv-arm64/
 bench/data/
