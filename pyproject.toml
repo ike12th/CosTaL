@@ -1,0 +1,42 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "costal-plus"
+version = "0.0.1"
+description = "CosTaL 的高性能重写：cosine kNN 图 → Tanimoto 边权精修 → Leiden 社区发现"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Yijia Li" }]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = ["numpy>=1.21"]
+
+[project.optional-dependencies]
+# profile / benchmark 用，装 wheel 的人不需要
+bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
+dev = ["pytest", "maturin>=1.7"]
+
+[project.urls]
+Homepage = "https://github.com/li000678/CosTaL"
+Paper = "https://doi.org/10.1093/bib/bbad157"
+
+[project.scripts]
+costal-plus = "costal_plus.cli:main"
+
+[tool.maturin]
+manifest-path = "crates/costal-py/Cargo.toml"
+module-name = "costal_plus._costal_plus"
+python-source = "python"
+features = ["pyo3/extension-module"]
+strip = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

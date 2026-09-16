@@ -1,0 +1,67 @@
+name: wheels
+
+# 交付形态是 `pip install` 即可用（docs/01 §3）。目标机器是 macos-arm64 与
+# linux-x86_64，但 wheel 覆盖面按"所有能覆盖的平台"来，省得调用方挑环境。
+# abi3-py39：每个平台一个 wheel 通吃 CPython 3.9+。
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths: [".github/workflows/wheels.yml", "pyproject.toml", "Cargo.toml"]
+
+jobs:
+  build:
+    name: ${{ matrix.platform.runner }} / ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          # ---- 主力目标 ----
+          - { runner: macos-14,       target: aarch64-apple-darwin,       manylinux: auto }
+          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-gnu,   manylinux: "2_17" }
+          # ---- 其余覆盖面 ----
+          - { runner: macos-13,       target: x86_64-apple-darwin,        manylinux: auto }
+          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-gnu,  manylinux: "2_17" }
+          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-musl,  manylinux: musllinux_1_2 }
+          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
+          - { runner: windows-latest, target: x86_64-pc-windows-msvc,     manylinux: auto }
+          - { runner: windows-11-arm, target: aarch64-pc-windows-msvc,    manylinux: auto }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          manylinux: ${{ matrix.platform.manylinux }}
+          sccache: "true"
+      - name: smoke test (native targets only)
+        # 交叉编译出来的 wheel 在 runner 上跑不了，跳过。
+        if: ${{ !contains(matrix.platform.target, 'aarch64-unknown-linux') && !contains(matrix.platform.target, 'musl') }}
+        shell: bash
+        run: |
+          pip install --find-links dist --force-reinstall costal-plus
+          python -c "import costal_plus; print(costal_plus.hello())"
+          costal-plus info
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist

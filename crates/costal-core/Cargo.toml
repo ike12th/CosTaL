@@ -1,0 +1,13 @@
+[package]
+name = "costal-core"
+description = "Core algorithms for CosTaL+ (cosine kNN graph, Tanimoto edge weights, community detection)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]

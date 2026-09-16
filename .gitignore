@@ -1,0 +1,12 @@
+target/
+*.so
+*.pyd
+*.dylib
+__pycache__/
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+.venv/
+bench/out/
+.venv-arm64/

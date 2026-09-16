@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/costal-core", "crates/costal-py"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.78"
+license = "MIT"
+repository = "https://github.com/li000678/CosTaL"
+authors = ["Yijia Li"]
+
+[workspace.dependencies]
+costal-core = { path = "crates/costal-core", version = "0.0.1" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+# NOTE: no panic="abort" — a Rust panic must unwind back into PyO3,
+# otherwise a panic in the extension kills the whole Python interpreter.

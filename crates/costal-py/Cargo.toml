@@ -1,0 +1,18 @@
+[package]
+name = "costal-py"
+description = "Python bindings for CosTaL+"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "_costal_plus"
+crate-type = ["cdylib"]
+
+[dependencies]
+costal-core.workspace = true
+pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+numpy = "0.29"

@@ -1,0 +1,8 @@
+# macOS 上 extension-module 的符号要留到运行期由 python 解释器提供，
+# 否则裸 `cargo build` 会在链接期找不到 _Py* 符号。maturin 自己会加这段，
+# 但 `cargo build` / `cargo clippy` 不会，所以在这里固化。
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
