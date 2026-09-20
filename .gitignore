@@ -14,3 +14,4 @@ bench/out/*
 !bench/out/tanimoto_semantics.log
 .venv-arm64/
 bench/data/
+.DS_Store
