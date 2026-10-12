@@ -27,7 +27,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 # CI 上写到别的文件，免得和仓库里本机（M1）的数字混在一起
-OUT = Path(os.environ.get("STAGE_A_OUT", HERE / "out" / "stage_a.json"))
+OUT = Path(os.environ.get("STAGE_A_OUT", HERE / "out" / "stage_a.json")).resolve()
 REFERENCE = HERE / "reference" / "CosTaL-0.0.2.4"
 K = 10
 SEED = 0
