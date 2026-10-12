@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.83"
 license = "MIT"
-repository = "https://github.com/li000678/CosTaL"
+repository = "https://github.com/ike12th/costal-plus"
 authors = ["Yijia Li"]
 
 [workspace.dependencies]

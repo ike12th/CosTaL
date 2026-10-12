@@ -25,7 +25,8 @@ bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
 dev = ["pytest", "maturin>=1.7", "scipy"]
 
 [project.urls]
-Homepage = "https://github.com/li000678/CosTaL"
+Homepage = "https://github.com/ike12th/costal-plus"
+"Original CosTaL" = "https://github.com/li000678/CosTaL"
 Paper = "https://doi.org/10.1093/bib/bbad157"
 
 [project.scripts]
