@@ -1,17 +1,19 @@
-"""在 Linux x86-64 上跑原版 `p_knng_Linux`，拿 L3 黄金输出并与 CosTaL+ 对照（docs/04 §4）。
+"""Run the original `p_knng_Linux` on Linux x86-64 to get the L3 golden output and compare it
+with CosTaL+ (docs/04 §4).
 
-要回答 docs/04 §4 待核的两件事：
+It answers the two open items in docs/04 §4:
 
-1. **索引起始。** 原版传了 `-readZidx -writeZidx`（按 0 起始读写），读回后却又做了
-   `columns - 1`（注释 "bug in L2knng"）。二进制实际按几起始写？
-2. **重复细胞上怎么排除自身。** 原版 `bc()` 的 `idx[:, 1:]` 在精确重复细胞上会把自身
-   留下（docs/04 §4 第 4 条）。`p_knng` 有没有同样的问题？
+1. **Index base.** The original passes `-readZidx -writeZidx` (zero-based read and write), yet
+   applies `columns - 1` after reading back (comment "bug in L2knng"). Which base does the
+   binary actually write?
+2. **Self-exclusion with duplicate cells.** The original `bc()`'s `idx[:, 1:]` keeps the cell
+   itself when exact duplicates exist (docs/04 §4 item 4). Does `p_knng` have the same problem?
 
-只能在 Linux x86-64 上跑（CI 的 ubuntu runner）。用法：
+Runs only on Linux x86-64 (the CI ubuntu runner). Usage:
 
-    python bench/golden_pknng.py [N ...]      # 默认 20000 50000；每个 N 跑去重与未去重两份
+    python bench/golden_pknng.py [N ...]      # default 20000 50000; each N runs deduplicated and raw
 
-输出：`bench/out/golden_pknng.json`，以及每次运行的 `.clu`（`bench/out/golden/`）。
+Output: `bench/out/golden_pknng.json`, plus each run's `.clu` (`bench/out/golden/`).
 """
 
 from __future__ import annotations
@@ -40,9 +42,10 @@ PKNNG = REFERENCE / "CosTaL" / "p_knng_Linux"
 
 
 def run_pknng(x: np.ndarray, tag: str) -> tuple[np.ndarray, np.ndarray, list[int], float]:
-    """照原版 find_communities 的写法：L2 归一化后写 .ijv，用同样的参数调 p_knng，读回 .clu。
+    """Follow the original find_communities: write the L2-normalized data to .ijv, call p_knng with
+    the same arguments, and read the .clu back.
 
-    返回 (raw_cols, vals, meta, 秒数)。raw_cols 是 .clu 里的原始整数，不做任何 −1。
+    Returns (raw_cols, vals, meta, seconds). raw_cols are the raw integers from the .clu, with no −1.
     """
     from sklearn.preprocessing import normalize
 
@@ -58,10 +61,10 @@ def run_pknng(x: np.ndarray, tag: str) -> tuple[np.ndarray, np.ndarray, list[int
     proc = subprocess.run(args, capture_output=True, text=True)
     seconds = time.perf_counter() - t0
     if proc.returncode != 0:
-        raise RuntimeError(f"p_knng 失败（{proc.returncode}）：{proc.stderr or proc.stdout}")
-    ijv.unlink()  # .ijv 只是输入，不留
+        raise RuntimeError(f"p_knng failed ({proc.returncode}): {proc.stderr or proc.stdout}")
+    ijv.unlink()  # the .ijv is only input; don't keep it
 
-    # 与原版 build_tani_graph 相同的解析，只是不做 −1
+    # Same parsing as the original build_tani_graph, except no −1
     lines = [line.split() for line in clu.read_text().splitlines()]
     meta = list(map(int, lines[0]))
     flat = [tok for row in lines[1:] for tok in row]
@@ -86,7 +89,7 @@ def compare(x: np.ndarray, raw_cols: np.ndarray, vals: np.ndarray) -> dict:
             "min_index": int(cols.min()),
             "max_index": int(cols.max()),
         }
-    # 选更像的那种解释，再看不同的行是不是精确 / 近似并列
+    # Pick the interpretation that matches better, then check whether differing rows are exact / near ties
     base = max((0, 1), key=lambda b: res[f"as_{b}_based"]["rows_identical_to_costal_plus"])
     cols = raw_cols - base
     x64 = x / np.linalg.norm(x, axis=1, keepdims=True)
@@ -98,7 +101,7 @@ def compare(x: np.ndarray, raw_cols: np.ndarray, vals: np.ndarray) -> dict:
             only_c = sorted(b - a)
             if len(only_p) == len(only_c):
                 gaps.append(float(np.max(np.abs(np.sort(x64[only_p] @ x64[i]) - np.sort(x64[only_c] @ x64[i])))))
-    # .clu 里的值是不是 cosine，与我们的精排值差多少（按邻居对齐）
+    # Are the .clu values cosine, and how far are they from our rescored values (aligned by neighbor)
     order_p = np.argsort(cols, axis=1)
     order_c = np.argsort(g.idx, axis=1)
     same_rows = np.array([set(c) == o for c, o in zip(cols.tolist(), ours)])

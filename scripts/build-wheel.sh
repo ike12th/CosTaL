@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本地出 wheel。不带参数 = 当前平台；带 target 三元组 = 交叉编译（需要 zig）。
+# Build a wheel locally. No argument = current platform; a target triple = cross-compile (needs zig).
 #   scripts/build-wheel.sh
 #   scripts/build-wheel.sh x86_64-unknown-linux-gnu --zig
 set -euo pipefail

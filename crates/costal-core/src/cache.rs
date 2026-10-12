@@ -1,17 +1,20 @@
-//! 每个线程能独占的 L2 份额，用来定瓦片尺寸（docs/06 §2.3）。
+//! The share of L2 each thread has to itself, used to size tiles (docs/06 §2.3).
 //!
-//! 只瞄准每核独占的那份 L2，不瞄准 L3：L3 被所有核和其它进程共享，能分到多少不可预测。
-//! 读不到缓存信息就用保底值；这些数只影响速度，不影响输出（docs/06 §1）。
+//! We target only the per-core private L2, never L3: L3 is shared by all cores and other
+//! processes, so the share we get is unpredictable.
+//! Without cache information we use a fallback; these numbers affect speed only, never output
+//! (docs/06 §1).
 
-/// 读不到缓存信息时的保底瓦片预算：常见最小独占 L2（256 KB）的一半。
+/// Fallback tile budget when cache info is unavailable: half of the smallest common private L2 (256 KB).
 pub const FALLBACK_TILE_BYTES: usize = 128 * 1024;
 
-/// 每个线程分到的 L2 字节数；读不到返回 `None`。
+/// L2 bytes per thread; `None` if it can't be read.
 pub fn l2_bytes_per_thread() -> Option<usize> {
     imp::l2_per_thread()
 }
 
-/// 瓦片预算：每线程 L2 的一半（另一半留给行块、列块和堆），读不到时用保底值。
+/// Tile budget: half of the per-thread L2 (the other half is left for row/column blocks and
+/// heaps), or the fallback when it can't be read.
 pub fn tile_budget_bytes() -> usize {
     l2_bytes_per_thread()
         .map(|b| (b / 2).clamp(64 * 1024, 4 << 20))
@@ -37,7 +40,8 @@ mod imp {
         let cname = CString::new(name).ok()?;
         let mut value: u64 = 0;
         let mut len = std::mem::size_of::<u64>();
-        // SAFETY: 缓冲区是一个 u64，len 如实给出其大小；内核按 len 截断写入。
+        // SAFETY: the buffer is one u64 and len states its size truthfully; the kernel writes at
+        // most len bytes.
         let rc = unsafe {
             sysctlbyname(
                 cname.as_ptr(),
@@ -48,7 +52,7 @@ mod imp {
             )
         };
         match (rc, len) {
-            // 有的项是 32 位；小端机上低 4 字节就是值
+            // Some entries are 32-bit; on little-endian machines the low 4 bytes hold the value
             (0, 4) => Some(value & 0xffff_ffff),
             (0, 8) => Some(value),
             _ => None,
@@ -56,7 +60,8 @@ mod imp {
     }
 
     pub fn l2_per_thread() -> Option<usize> {
-        // 性能核（perflevel0）的 L2 与共享它的核数；老系统没有 perflevel 时退回 hw.l2cachesize
+        // L2 of the performance cores (perflevel0) and how many cores share it; older systems
+        // without perflevel fall back to hw.l2cachesize
         let (size, sharing) = match (
             read_u64("hw.perflevel0.l2cachesize"),
             read_u64("hw.perflevel0.cpusperl2"),
@@ -90,7 +95,8 @@ mod imp {
     }
 }
 
-// Windows 等：先用保底值。GetLogicalProcessorInformationEx 的探测待补（docs/06 §2.3）。
+// Windows and others: use the fallback for now. Detection via GetLogicalProcessorInformationEx
+// is still to do (docs/06 §2.3).
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 mod imp {
     pub fn l2_per_thread() -> Option<usize> {
@@ -98,7 +104,7 @@ mod imp {
     }
 }
 
-/// 解析 sysfs 的缓存大小，如 "1024K"、"2M"。
+/// Parse a sysfs cache size such as "1024K" or "2M".
 #[cfg(any(target_os = "linux", test))]
 fn parse_size(s: &str) -> Option<usize> {
     let (num, mul) = match s.as_bytes().last()? {
@@ -110,7 +116,7 @@ fn parse_size(s: &str) -> Option<usize> {
     num.parse::<usize>().ok().map(|n| n * mul)
 }
 
-/// 数 sysfs 的 CPU 列表里有几个 CPU，如 "0-3,8-11" → 8。
+/// Count CPUs in a sysfs CPU list, e.g. "0-3,8-11" → 8.
 #[cfg(any(target_os = "linux", test))]
 fn count_cpus(list: &str) -> usize {
     list.split(',')

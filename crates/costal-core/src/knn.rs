@@ -1,11 +1,13 @@
-//! 精确 kNN：融合分块的 f32 全量粗选 + f64 精排（docs/03 §2.2、docs/06 §1）。
+//! Exact kNN: fused blocked f32 coarse selection over all pairs + f64 rescoring
+//! (docs/03 §2.2, docs/06 §1).
 //!
-//! 1. 行范数（f64）、按范数排序的工作布局（docs/04 §2.3）、L2 归一化的 f32 副本；
-//! 2. **粗选**：对每个（行块 × 列块）瓦片做 matmul，立刻并入每行的 top-(k+m) 堆，
-//!    瓦片随即复用。全部 N² 个相似度都算过——粗的是精度，不是范围；
-//! 3. **精排**：每行 k+m 个候选用 f64、按维度下标的固定顺序重算 cosine，
-//!    按（分数降序, 原始索引升序）取前 k。最终名次只由这一步决定，
-//!    所以瓦片尺寸、线程数、matmul 后端都不改变输出。
+//! 1. Row norms (f64), a norm-sorted working layout (docs/04 §2.3), and an L2-normalized f32 copy;
+//! 2. **Coarse selection**: for every (row block × column block) tile, run the matmul and merge
+//!    the tile into each row's top-(k+m) heap right away; the tile buffer is then reused.
+//!    All N² similarities are computed — only the precision is coarse, not the coverage;
+//! 3. **Rescoring**: each row's k+m candidates are recomputed in f64 with a fixed order over the
+//!    dimensions and ranked by (score desc, original index asc). The final ranking depends only
+//!    on this step, so tile sizes, thread count and matmul backend never change the output.
 
 use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,23 +17,23 @@ use rayon::prelude::*;
 use crate::cache;
 use crate::matmul::{self, Matmul};
 
-/// 默认列块宽度。行块高度由缓存预算推出（docs/06 §2.3）。
+/// Default column-block width. The row-block height comes from the cache budget (docs/06 §2.3).
 pub const DEFAULT_COL_BLOCK: usize = 1024;
 
-/// kNN 参数。`KnnParams::new(k)` 给出与已发表 CosTaL 一致的默认值。
+/// kNN parameters. `KnnParams::new(k)` gives defaults matching the published CosTaL.
 #[derive(Clone, Debug)]
 pub struct KnnParams {
-    /// 每行的邻居数，不含自身（docs/04 §0.0 第 4 条）。
+    /// Neighbors per row, excluding the row itself (docs/04 §0.0 item 4).
     pub k: usize,
-    /// 粗选余量 m：每行保留 top-(k+m) 交给 f64 精排（docs/06 §1.2）。
+    /// Coarse-selection margin m: each row keeps top-(k+m) for f64 rescoring (docs/06 §1.2).
     pub margin: usize,
-    /// 行块高度；`None` 按缓存预算推出。
+    /// Row-block height; `None` derives it from the cache budget.
     pub row_block: Option<usize>,
-    /// 列块宽度；`None` 用 [`DEFAULT_COL_BLOCK`]。
+    /// Column-block width; `None` uses [`DEFAULT_COL_BLOCK`].
     pub col_block: Option<usize>,
     pub matmul: Matmul,
-    /// 按行范数排序的工作布局（docs/04 §2.3）。cosine 选择用不上但无害；
-    /// 留着开关只为测试"布局不改变输出"。
+    /// Norm-sorted working layout (docs/04 §2.3). Cosine selection doesn't need it but it is
+    /// harmless; the switch exists only to test that the layout doesn't change the output.
     pub sort_by_norm: bool,
 }
 
@@ -48,16 +50,16 @@ impl KnnParams {
     }
 }
 
-/// kNN 结果，全部按原始行序。
+/// kNN result, all in original row order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Knn {
     pub n: usize,
     pub k: usize,
-    /// 行主序 n×k 的原始索引；每行按（cos 降序, 索引升序）排好。
+    /// Row-major n×k original indices; each row sorted by (cos desc, index asc).
     pub idx: Vec<u32>,
-    /// 行主序 n×k，f64 精排后的 cosine。
+    /// Row-major n×k cosine after f64 rescoring.
     pub cos: Vec<f64>,
-    /// 原始（未归一化）行范数，f64。
+    /// Raw (un-normalized) row norms, f64.
     pub norms: Vec<f64>,
 }
 
@@ -73,36 +75,43 @@ pub enum KnnError {
 impl fmt::Display for KnnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            KnnError::Shape { len, n, d } => write!(f, "数据长度 {len} 与形状 {n}x{d} 不符"),
-            KnnError::BadK { k, n } => write!(f, "k={k} 不合法：需要 1 ≤ k ≤ n-1（n={n}）"),
-            KnnError::TooManyRows { n } => write!(f, "n={n} 超出 u32 索引范围"),
-            KnnError::NonFinite { row } => write!(f, "第 {row} 行含 NaN 或 inf"),
-            KnnError::MatmulUnavailable(name) => write!(f, "matmul 后端 {name} 在当前平台不可用"),
+            KnnError::Shape { len, n, d } => {
+                write!(f, "data length {len} does not match shape {n}x{d}")
+            }
+            KnnError::BadK { k, n } => write!(f, "invalid k={k}: need 1 <= k <= n-1 (n={n})"),
+            KnnError::TooManyRows { n } => write!(f, "n={n} exceeds the u32 index range"),
+            KnnError::NonFinite { row } => write!(f, "row {row} contains NaN or inf"),
+            KnnError::MatmulUnavailable(name) => {
+                write!(f, "matmul backend {name} is not available on this platform")
+            }
         }
     }
 }
 
 impl std::error::Error for KnnError {}
 
-/// 选择度量的比较器（docs/04 §1）。内层循环按它单态化，入口处 match 一次。
+/// Comparator for the selection metric (docs/04 §1). The inner loop is monomorphized over it,
+/// with a single `match` at the entry point.
 ///
-/// 阶段 A 只有 [`Cosine`]。Tanimoto 在阶段 A+ 加入：`tile_threshold` 用列块的
-/// 最小范数给保守阈值（列已按范数升序排好，`col_start` 处就是最小值），
-/// `score` 在罕见路径上算精确分数（docs/04 §2）。
+/// Stage A has only [`Cosine`]. Tanimoto arrives in stage A+: `tile_threshold` gives a
+/// conservative threshold from the column block's smallest norm (columns are sorted by norm
+/// ascending, so the minimum is at `col_start`), and `score` computes the exact score on the
+/// rare path (docs/04 §2).
 pub trait Selector: Sync {
-    /// 每行的预计算常量。
+    /// Per-row precomputed constants.
     type RowState: Copy;
     fn row_state(&self, row: usize) -> Self::RowState;
-    /// 列块上的保守标量阈值：瓦片值不超过它的候选一定进不了堆。
-    /// `tau` 是该行堆的门槛（未满时为 -inf），`col_start` 是列块起点（工作序）。
+    /// Conservative scalar threshold for a column block: a candidate whose tile value does not
+    /// exceed it can never enter the heap. `tau` is the row's heap threshold (-inf while the
+    /// heap is not full); `col_start` is the block's first column (working order).
     fn tile_threshold(&self, st: Self::RowState, tau: f32, col_start: usize) -> f32;
-    /// 罕见路径：通过阈值后的选择分数（f32，只用于粗选）。
+    /// Rare path: the selection score after passing the threshold (f32, coarse selection only).
     fn score(&self, st: Self::RowState, col: usize, sim: f32) -> f32;
-    /// 精排分数（f64），由精排后的 cosine 与两端原始范数算出。
+    /// Rescoring score (f64), from the rescored cosine and both raw norms.
     fn rescore(&self, cos: f64, norm_i: f64, norm_j: f64) -> f64;
 }
 
-/// 按 cosine 选邻居——已发表 CosTaL 的选择度量。
+/// Select neighbors by cosine — the selection metric of the published CosTaL.
 pub struct Cosine;
 
 impl Selector for Cosine {
@@ -123,8 +132,9 @@ impl Selector for Cosine {
     }
 }
 
-/// f64、按维度下标固定顺序的点积。f32×f32 在 f64 里是精确的；Rust 默认不做浮点收缩、
-/// 也不重排浮点累加，所以这是跨平台逐位一致的唯一来源（docs/06 §1.2）。
+/// f64 dot product in a fixed order over the dimension index. f32×f32 is exact in f64; Rust
+/// does not contract floating-point ops or reorder float sums by default, so this is the single
+/// source of cross-platform bit-for-bit agreement (docs/06 §1.2).
 #[inline]
 pub fn dot64(a: &[f32], b: &[f32]) -> f64 {
     let mut s = 0.0f64;
@@ -134,14 +144,15 @@ pub fn dot64(a: &[f32], b: &[f32]) -> f64 {
     s
 }
 
-/// 精排用的 cosine；零向量与任何向量的 cosine 记为 0（与原版 L2 归一化后零行的行为一致）。
+/// Cosine for rescoring; a zero vector has cosine 0 with everything (matching zero rows after
+/// the original's L2 normalization).
 #[inline]
 fn cos64(dot: f64, norm_i: f64, norm_j: f64) -> f64 {
     if norm_i == 0.0 || norm_j == 0.0 {
         return 0.0;
     }
     let c = dot / (norm_i * norm_j);
-    // 把 -0.0 规整成 0.0，排序用的全序才和数值相等一致
+    // Normalize -0.0 to 0.0 so the total order used for sorting agrees with numeric equality
     if c == 0.0 {
         0.0
     } else {
@@ -149,7 +160,7 @@ fn cos64(dot: f64, norm_i: f64, norm_j: f64) -> f64 {
     }
 }
 
-/// 原始行范数，f64。
+/// Raw row norms, f64.
 pub fn row_norms64(x: &[f32], n: usize, d: usize) -> Vec<f64> {
     (0..n)
         .into_par_iter()
@@ -179,22 +190,23 @@ fn validate(x: &[f32], n: usize, d: usize, k: usize) -> Result<(), KnnError> {
     }
 }
 
-/// 精确 kNN 的附带统计。不放进 [`Knn`]，免得影响结果比对。
+/// Side statistics of an exact kNN run. Kept out of [`Knn`] so they don't affect result comparisons.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct KnnStats {
-    /// 粗选门槛离第 k 名太近、改走"整行收集 + 精排"的行数。结果仍然精确，
-    /// 只是这些行更慢。它就是 docs/06 §1.2 说的"粗选漏选"风险被兜住的次数。
+    /// Rows whose coarse threshold was too close to the k-th score and that took the
+    /// "regather the whole row + rescore" path. Results are still exact, just slower for these
+    /// rows; this counts how often the "missed in coarse selection" risk of docs/06 §1.2 was caught.
     pub fallback_rows: usize,
     pub row_block: usize,
     pub col_block: usize,
 }
 
-/// 精确 kNN，按 cosine 选邻居（阶段 A）。
+/// Exact kNN, selecting neighbors by cosine (stage A).
 pub fn knn_exact(x: &[f32], n: usize, d: usize, params: &KnnParams) -> Result<Knn, KnnError> {
     knn_exact_with_stats(x, n, d, params).map(|(knn, _)| knn)
 }
 
-/// 同 [`knn_exact`]，另外返回统计。
+/// Like [`knn_exact`], also returning statistics.
 pub fn knn_exact_with_stats(
     x: &[f32],
     n: usize,
@@ -208,14 +220,14 @@ pub fn knn_exact_with_stats(
     Ok(run_blocked(&Cosine, x, n, d, params))
 }
 
-/// 一次调用里所有线程共享的只读状态。
+/// Read-only state shared by all threads within one call.
 struct Ctx<'a, S> {
     sel: &'a S,
     x: &'a [f32],
-    /// 工作序下 L2 归一化的 f32 副本，只供粗选。
+    /// L2-normalized f32 copy in working order, used only for coarse selection.
     xn: &'a [f32],
     norms: &'a [f64],
-    /// 工作序 → 原始序。
+    /// Working order → original order.
     perm: &'a [u32],
     n: usize,
     d: usize,
@@ -223,8 +235,9 @@ struct Ctx<'a, S> {
     cap: usize,
     cb: usize,
     backend: Matmul,
-    /// f32 粗选值与真实 cosine 之差的上界。归一化到 f32（相对误差 ≤ u）加上任意累加
-    /// 顺序的 f32 点积（≤ γ_d），合起来是 (d+2)·u 量级；这里取 (d+4)·2⁻²³，留一倍余量。
+    /// Upper bound on |f32 coarse value − true cosine|. Normalizing to f32 (relative error ≤ u)
+    /// plus an f32 dot product in any summation order (≤ γ_d) is on the order of (d+2)·u; we use
+    /// (d+4)·2⁻²³, a 2× margin.
     eps: f64,
 }
 
@@ -238,7 +251,8 @@ fn run_blocked<S: Selector>(
     let k = p.k;
     let norms = row_norms64(x, n, d);
 
-    // 工作序 → 原始序。按 (范数, 原始索引) 升序：稳定排序保证等范数时按原始索引
+    // Working order → original order, ascending by (norm, original index): the stable sort
+    // keeps original-index order among equal norms
     let mut perm: Vec<u32> = (0..n as u32).collect();
     if p.sort_by_norm {
         perm.sort_by(|&a, &b| norms[a as usize].total_cmp(&norms[b as usize]));
@@ -301,7 +315,7 @@ fn run_blocked<S: Selector>(
             },
         );
 
-    // 工作序 → 原始序
+    // Working order → original order
     let mut idx = vec![0u32; n * k];
     let mut cos = vec![0.0f64; n * k];
     for (w, &orig) in perm.iter().enumerate() {
@@ -326,14 +340,15 @@ fn run_blocked<S: Selector>(
     )
 }
 
-/// 行块高度与列块宽度。
+/// Row-block height and column-block width.
 fn block_sizes(n: usize, p: &KnnParams) -> (usize, usize) {
     let cb = p.col_block.unwrap_or(DEFAULT_COL_BLOCK).clamp(1, n);
     let rb = p
         .row_block
         .unwrap_or_else(|| {
             let by_cache = cache::tile_budget_bytes() / (cb * std::mem::size_of::<f32>());
-            // 每个线程至少分到 ~8 个行块，大小核之间靠工作窃取均衡（docs/06 §4）
+            // Give each thread ~8 row blocks so work stealing can balance big and little cores
+            // (docs/06 §4)
             let by_balance = n.div_ceil(rayon::current_num_threads() * 8);
             by_cache.min(by_balance).clamp(8, 512)
         })
@@ -341,7 +356,7 @@ fn block_sizes(n: usize, p: &KnnParams) -> (usize, usize) {
     (rb, cb)
 }
 
-/// 每个线程复用的缓冲区。
+/// Per-thread reusable buffers.
 struct Scratch {
     tile: Vec<f32>,
     heaps: BlockHeaps,
@@ -358,13 +373,13 @@ impl Scratch {
     }
 }
 
-/// 候选按（分数降序, 原始索引升序）排好。
+/// Sort candidates by (score desc, original index asc).
 fn sort_cands(c: &mut [(f64, f64, u32)]) {
     c.sort_unstable_by(|a, b| b.0.total_cmp(&a.0).then(a.2.cmp(&b.2)));
 }
 
 impl<S: Selector> Ctx<'_, S> {
-    /// 一个行块的粗选：逐列块做 matmul，并入每行的堆。
+    /// Coarse selection for one row block: matmul per column block, merged into each row's heap.
     fn coarse_block(&self, r0: usize, rows: usize, scr: &mut Scratch) {
         let d = self.d;
         scr.heaps.reset();
@@ -384,14 +399,16 @@ impl<S: Selector> Ctx<'_, S> {
         }
     }
 
-    /// 精排一行，返回是否走了兜底路径。
+    /// Rescore one row; returns whether the fallback path was taken.
     ///
-    /// 没进堆的候选，f32 值都不超过堆根（粗选门槛），真实 cosine 因此不超过门槛 + ε。
-    /// 只要精排后的第 k 名严格高于这个界，没进堆的候选既进不了前 k 也不可能并列，
-    /// 结果就是精确的。否则整行重新收集 f32 值 ≥ 第 k 名 − ε 的全部候选
-    /// （真实 cosine ≥ 第 k 名的必在其中），再统一精排。
+    /// Every candidate that never entered the heap has an f32 value no greater than the heap
+    /// root (the coarse threshold), so its true cosine is at most threshold + ε. As long as the
+    /// rescored k-th score is strictly above that bound, no such candidate can enter the top k
+    /// or tie, and the result is exact. Otherwise the whole row is regathered — every candidate
+    /// with f32 value ≥ k-th score − ε (all candidates with true cosine ≥ the k-th score are
+    /// among them) — and rescored together.
     ///
-    /// 这个界是按 cosine 推的；阶段 A+ 加 Tanimoto 选择时要按它的分数重推。
+    /// The bound is derived for cosine; stage A+ must re-derive it for Tanimoto scores.
     fn finalize_row(
         &self,
         w_row: usize,
@@ -408,7 +425,7 @@ impl<S: Selector> Ctx<'_, S> {
         }
         sort_cands(&mut scr.cands);
 
-        // cap == n-1 时堆里就是全部候选，不存在没进堆的
+        // With cap == n-1 the heap holds every candidate, so nothing was left out
         let mut fell_back = false;
         if self.cap < self.n - 1 {
             let floor = f64::from(scr.heaps.tau(r));
@@ -426,7 +443,7 @@ impl<S: Selector> Ctx<'_, S> {
         fell_back
     }
 
-    /// 兜底：对一行重新扫全部列，收集 f32 值 ≥ `min_sim` 的候选并精排。
+    /// Fallback: rescan all columns for one row, gather candidates with f32 value ≥ `min_sim`, and rescore them.
     fn gather_row(&self, w_row: usize, min_sim: f64, scr: &mut Scratch) {
         let d = self.d;
         let i = self.perm[w_row] as usize;
@@ -448,7 +465,7 @@ impl<S: Selector> Ctx<'_, S> {
         }
     }
 
-    /// 对工作序候选 `wj` 用 f64 重算，连同原始索引一起放进 `cands`。
+    /// Recompute working-order candidate `wj` in f64 and push it into `cands` with its original index.
     fn push_rescored(&self, i: usize, wj: usize, cands: &mut Vec<(f64, f64, u32)>) {
         let d = self.d;
         let j = self.perm[wj];
@@ -459,8 +476,8 @@ impl<S: Selector> Ctx<'_, S> {
     }
 }
 
-/// 扫瓦片的一行。绝大多数候选在"整段都不超过阈值"这一步就被拒掉；
-/// 自身排除和堆插入都只在罕见路径上。
+/// Scan one tile row. Almost every candidate is rejected at the "whole chunk is below the
+/// threshold" step; self-exclusion and heap insertion happen only on the rare path.
 #[inline(always)]
 fn scan_row<S: Selector>(
     sel: &S,
@@ -492,7 +509,8 @@ fn scan_row<S: Selector>(
     }
 }
 
-/// 一个行块里每行一个定容小顶堆。根是"最差"的候选：分数低者更差，同分时索引大者更差。
+/// One fixed-capacity min-heap per row of a row block. The root is the "worst" candidate: a lower
+/// score is worse, and on equal scores a larger index is worse.
 struct BlockHeaps {
     cap: usize,
     scores: Vec<f32>,
@@ -519,7 +537,7 @@ impl BlockHeaps {
         self.lens.fill(0);
     }
 
-    /// 进堆门槛：未满时为 -inf，满了是根的分数。
+    /// Heap threshold: -inf while not full, otherwise the root's score.
     #[inline(always)]
     fn tau(&self, r: usize) -> f32 {
         if self.lens[r] < self.cap {
@@ -579,7 +597,8 @@ impl BlockHeaps {
     }
 }
 
-/// 黄金对照：不分块、不剪枝、全程 f64（docs/04 §4 的 L2 层）。O(N²·d)，只用于测试与基准。
+/// Golden reference: no blocking, no pruning, f64 throughout (layer L2 of docs/04 §4).
+/// O(N²·d); for tests and benchmarks only.
 pub fn knn_bruteforce(x: &[f32], n: usize, d: usize, k: usize) -> Result<Knn, KnnError> {
     validate(x, n, d, k)?;
     let norms = row_norms64(x, n, d);
@@ -618,7 +637,7 @@ pub fn knn_bruteforce(x: &[f32], n: usize, d: usize, k: usize) -> Result<Knn, Kn
 mod tests {
     use super::*;
 
-    /// 可复现的伪随机数（不引依赖）。
+    /// Reproducible pseudo-random numbers (no extra dependency).
     struct Lcg(u64);
     impl Lcg {
         fn next_f32(&mut self) -> f32 {
@@ -630,7 +649,7 @@ mod tests {
         }
     }
 
-    /// 带簇结构、带负值的数据，形状接近 CyTOF。
+    /// Clustered data with negative values, shaped like CyTOF.
     fn clustered(n: usize, d: usize, seed: u64) -> Vec<f32> {
         let mut g = Lcg(seed);
         let centers: Vec<f32> = (0..8 * d).map(|_| g.next_f32() * 4.0).collect();
@@ -691,7 +710,8 @@ mod tests {
 
     #[test]
     fn exact_duplicates_break_ties_by_original_index() {
-        // 10 个不同向量各复制 30 份：每行有 29 个 cos=1 的并列邻居，多于 k+m=20
+        // 10 distinct vectors, 30 copies each: every row has 29 tied neighbors with cos=1,
+        // more than k+m=20
         let (d, k) = (5, 10);
         let mut g = Lcg(3);
         let protos: Vec<f32> = (0..10 * d).map(|_| g.next_f32() - 0.3).collect();
@@ -702,13 +722,13 @@ mod tests {
         let want = knn_bruteforce(&x, n, d, k).unwrap();
         let got = knn_exact(&x, n, d, &params(k)).unwrap();
         assert_eq!(got, want);
-        // 第 0 行的邻居应是同一原型里索引最小的 10 个（10, 20, …, 100）
+        // Row 0's neighbors must be the 10 smallest indices of the same prototype (10, 20, …, 100)
         assert_eq!(&got.idx[..k], &[10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
     }
 
     #[test]
     fn zero_rows_and_integer_ties() {
-        // 小整数数据有大量精确并列；再混进几行全零
+        // Small-integer data has many exact ties; mix in a few all-zero rows
         let (n, d, k) = (400, 6, 12);
         let mut g = Lcg(4);
         let mut x: Vec<f32> = (0..n * d).map(|_| (g.next_f32() * 3.0).floor()).collect();
@@ -717,7 +737,7 @@ mod tests {
         }
         let want = knn_bruteforce(&x, n, d, k).unwrap();
         assert_eq!(knn_exact(&x, n, d, &params(k)).unwrap(), want);
-        // 零行与谁的 cosine 都是 0
+        // A zero row has cosine 0 with everything
         assert!(want.cos[..k].iter().all(|&c| c == 0.0));
     }
 
@@ -759,7 +779,7 @@ mod tests {
     #[test]
     fn heap_keeps_best_with_index_tiebreak() {
         let mut h = BlockHeaps::new(1, 3);
-        // 不经门槛直接 push：push 自己也必须拒绝不更好的候选
+        // Push without checking the threshold: push itself must reject candidates that aren't better
         for (s, id) in [(0.5, 7), (0.9, 3), (0.5, 2), (0.7, 9), (0.5, 1), (0.95, 0)] {
             h.push(0, s, id);
         }

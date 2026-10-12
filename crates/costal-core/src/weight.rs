@@ -1,7 +1,9 @@
-//! 边权：kNN 出口上的纯变换（docs/04 §6.1）。
+//! Edge weights: pure transforms on the kNN output (docs/04 §6.1).
 //!
-//! tanimoto / cosine 只用到 (cos, ‖a‖, ‖b‖)，O(N·k)；jaccard 要比较邻居的邻居，O(N·k²)。
-//! 每一种的运算顺序都照抄原版 CosTaL，f64 下与原版逐位一致。
+//! tanimoto / cosine need only (cos, ‖a‖, ‖b‖), O(N·k); jaccard compares neighbors of
+//! neighbors, O(N·k²).
+//! Each follows the original CosTaL's order of operations, so in f64 they match the original
+//! bit for bit.
 
 use rayon::prelude::*;
 
@@ -23,7 +25,7 @@ impl Weight {
     }
 }
 
-/// 原版 `tani_from_cos`：`d = a·b·cos`；`d == 0` 时为 0，否则 `d / (a² + b² − d)`。
+/// The original `tani_from_cos`: `d = a·b·cos`; 0 when `d == 0`, otherwise `d / (a² + b² − d)`.
 #[inline]
 pub fn tani_from_cos(a: f64, b: f64, cos: f64) -> f64 {
     let d = a * b * cos;
@@ -34,7 +36,8 @@ pub fn tani_from_cos(a: f64, b: f64, cos: f64) -> f64 {
     }
 }
 
-/// 按 `weight` 给 n×k 的有向 kNN 每条边算权重。`idx` 必须都在 `[0, n)` 内、每行无重复。
+/// Weight every edge of an n×k directed kNN by `weight`. All `idx` values must be in `[0, n)`,
+/// with no duplicates within a row.
 pub fn reweight(
     n: usize,
     k: usize,
@@ -56,8 +59,8 @@ pub fn reweight(
     }
 }
 
-/// 原版 `calc_jaccard`：边 (i, j) 的权重是 `s / (2k − s)`，s = |N(i) ∩ N(j)|，
-/// 邻居集不含自身。
+/// The original `calc_jaccard`: edge (i, j) gets `s / (2k − s)` with s = |N(i) ∩ N(j)|;
+/// neighbor sets exclude the row itself.
 fn jaccard(n: usize, k: usize, idx: &[u32]) -> Vec<f64> {
     let mut sorted = idx.to_vec();
     sorted.par_chunks_mut(k).for_each(|row| row.sort_unstable());
@@ -95,13 +98,13 @@ mod tests {
 
     #[test]
     fn tanimoto_matches_closed_form() {
-        // 方向相同、幅度不同：cos = 1，T = ab / (a² + b² − ab)
+        // Same direction, different magnitude: cos = 1, T = ab / (a² + b² − ab)
         assert_eq!(tani_from_cos(1.0, 2.0, 1.0), 2.0 / 3.0);
-        // 等长时退化为 c / (2 − c)
+        // Equal lengths degenerate to c / (2 − c)
         let c = 0.6;
         assert!((tani_from_cos(3.0, 3.0, c) - c / (2.0 - c)).abs() < 1e-15);
         assert_eq!(tani_from_cos(0.0, 2.0, 0.9), 0.0);
-        // 带符号输入的下界是 −1/3
+        // The lower bound for signed input is −1/3
         assert!((tani_from_cos(1.0, 1.0, -1.0) + 1.0 / 3.0).abs() < 1e-15);
     }
 
@@ -110,10 +113,10 @@ mod tests {
         // 0:{1,2} 1:{0,2} 2:{0,1} 3:{0,1}
         let idx = [1, 2, 0, 2, 0, 1, 0, 1];
         let w = reweight(4, 2, &idx, &[0.0; 8], &[1.0; 4], Weight::Jaccard);
-        // 边 0→1：N(0)∩N(1) = {2}，s=1 → 1/3；边 3→0：N(3)∩N(0) = {1} → 1/3
+        // Edge 0→1: N(0)∩N(1) = {2}, s=1 → 1/3; edge 3→0: N(3)∩N(0) = {1} → 1/3
         assert_eq!(w[0], 1.0 / 3.0);
         assert_eq!(w[6], 1.0 / 3.0);
-        // 边 2→0：N(2)={0,1}，N(0)={1,2}，交集 {1} → 1/3
+        // Edge 2→0: N(2)={0,1}, N(0)={1,2}, intersection {1} → 1/3
         assert_eq!(w[4], 1.0 / 3.0);
     }
 }

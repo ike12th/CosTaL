@@ -1,7 +1,9 @@
-//! CosTaL+ 的 PyO3 绑定。这里只做类型转换和错误映射，算法在 `costal-core`。
+//! PyO3 bindings for CosTaL+. Only type conversion and error mapping live here; the algorithms
+//! are in `costal-core`.
 //!
-//! 下划线开头的函数是给 `costal_plus` 包内部用的底层入口；公开 API 在 Python 侧
-//! （`python/costal_plus/_api.py`），参数校验与输入诊断也在那里。
+//! Functions starting with an underscore are low-level entry points for the `costal_plus`
+//! package itself; the public API is on the Python side (`python/costal_plus/_api.py`), together
+//! with argument validation and input diagnostics.
 
 use costal_core::knn::{self, Knn, KnnParams};
 use costal_core::matmul::Matmul;
@@ -29,9 +31,9 @@ fn value_err(e: impl std::fmt::Display) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
 
-const NOT_CONTIGUOUS: &str = "输入必须是 C 连续数组，先 np.ascontiguousarray";
+const NOT_CONTIGUOUS: &str = "input must be a C-contiguous array; call np.ascontiguousarray first";
 
-/// 在指定线程数的 rayon 线程池里跑；`None` 或 0 用全局池。
+/// Run inside a rayon pool with the given thread count; `None` or 0 uses the global pool.
 fn with_threads<T: Send>(n_threads: Option<usize>, f: impl FnOnce() -> T + Send) -> PyResult<T> {
     match n_threads {
         None | Some(0) => Ok(f()),
@@ -58,29 +60,31 @@ fn knn_to_py(py: Python<'_>, knn: Knn) -> PyResult<KnnArrays<'_>> {
     ))
 }
 
-/// 校验 (n, k) 的 int32 邻居矩阵，转成 u32。
+/// Validate an (n, k) int32 neighbor matrix and convert it to u32.
 fn neighbours(idx: &PyReadonlyArray2<'_, i32>) -> PyResult<(usize, usize, Vec<u32>)> {
     let (n, k) = idx.as_array().dim();
     let flat = idx.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     if let Some(&bad) = flat.iter().find(|&&j| j < 0 || j as usize >= n) {
-        return Err(value_err(format!("邻居索引 {bad} 越界（n={n}）")));
+        return Err(value_err(format!(
+            "neighbor index {bad} out of range (n={n})"
+        )));
     }
     Ok((n, k, flat.iter().map(|&j| j as u32).collect()))
 }
 
-/// 骨架自检，返回一句带 core 版本号的问候。
+/// Skeleton self-check: returns a greeting with the core version.
 #[pyfunction]
 fn hello() -> String {
     costal_core::hello()
 }
 
-/// core crate 的版本号（与 wheel 版本一致时说明装的是这次构建的产物）。
+/// Version of the core crate (matching the wheel version means this build is what got installed).
 #[pyfunction]
 fn core_version() -> &'static str {
     costal_core::VERSION
 }
 
-/// 按行计算 L2 范数：`(n, d)` float32 数组 -> 长度 `n` 的 float32 数组。
+/// Row-wise L2 norms: `(n, d)` float32 array -> float32 array of length `n`.
 #[pyfunction]
 fn row_l2_norms<'py>(
     py: Python<'py>,
@@ -92,7 +96,7 @@ fn row_l2_norms<'py>(
     Ok(PyArray1::from_vec(py, norms))
 }
 
-/// 精确 kNN（融合分块粗选 + f64 精排）。返回 (idx, cos, norms, stats)。
+/// Exact kNN (fused blocked coarse selection + f64 rescoring). Returns (idx, cos, norms, stats).
 #[pyfunction]
 #[pyo3(signature = (x, k, *, margin=None, row_block=None, col_block=None, matmul=None, sort_by_norm=true, n_threads=None))]
 #[allow(clippy::too_many_arguments)]
@@ -109,13 +113,13 @@ fn _knn_exact<'py>(
 ) -> PyResult<(KnnArrays<'py>, Bound<'py, PyDict>)> {
     let (n, d) = x.as_array().dim();
     if n > i32::MAX as usize {
-        return Err(value_err(format!("n={n} 超出 int32 索引范围")));
+        return Err(value_err(format!("n={n} exceeds the int32 index range")));
     }
     let slice = x.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     let backend = match matmul {
         None => Matmul::platform_default(),
         Some(name) => Matmul::from_name(name)
-            .ok_or_else(|| value_err(format!("未知 matmul 后端 {name:?}")))?,
+            .ok_or_else(|| value_err(format!("unknown matmul backend {name:?}")))?,
     };
     let params = KnnParams {
         margin: margin.unwrap_or(k),
@@ -141,7 +145,8 @@ fn _knn_exact<'py>(
     Ok((knn_to_py(py, result)?, stats))
 }
 
-/// 黄金对照：不分块、不剪枝、全程 f64 的暴力 kNN（只用于测试与基准）。
+/// Golden reference: brute-force kNN with no blocking, no pruning, f64 throughout (tests and
+/// benchmarks only).
 #[pyfunction]
 #[pyo3(signature = (x, k, *, n_threads=None))]
 fn _knn_bruteforce<'py>(
@@ -158,7 +163,7 @@ fn _knn_bruteforce<'py>(
     knn_to_py(py, result)
 }
 
-/// 在一份 kNN 上算边权（"tanimoto" / "cosine" / "jaccard"）。
+/// Edge weights on a kNN ("tanimoto" / "cosine" / "jaccard").
 #[pyfunction]
 fn _reweight<'py>(
     py: Python<'py>,
@@ -167,10 +172,11 @@ fn _reweight<'py>(
     norms: PyReadonlyArray1<'py, f64>,
     weight: &str,
 ) -> PyResult<Bound<'py, PyArray2<f64>>> {
-    let w = Weight::from_name(weight).ok_or_else(|| value_err(format!("未知边权 {weight:?}")))?;
+    let w = Weight::from_name(weight)
+        .ok_or_else(|| value_err(format!("unknown edge weight {weight:?}")))?;
     let (n, k, idx) = neighbours(&idx)?;
     if cos.as_array().dim() != (n, k) || norms.as_array().len() != n {
-        return Err(value_err("idx、cos、norms 的形状对不上"));
+        return Err(value_err("shapes of idx, cos and norms do not match"));
     }
     let cos = cos.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     let norms = norms.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
@@ -180,7 +186,8 @@ fn _reweight<'py>(
         .into_pyarray(py))
 }
 
-/// 原版 build_graph 的模糊并集对称化，返回上三角边表 (rows, cols, weights)。
+/// The original build_graph's fuzzy-union symmetrization; returns the upper-triangular edge
+/// list (rows, cols, weights).
 #[pyfunction]
 fn _fuzzy_union<'py>(
     py: Python<'py>,
@@ -189,7 +196,7 @@ fn _fuzzy_union<'py>(
 ) -> PyResult<EdgeArrays<'py>> {
     let (n, k, idx) = neighbours(&idx)?;
     if w.as_array().dim() != (n, k) {
-        return Err(value_err("idx 与 w 的形状对不上"));
+        return Err(value_err("shapes of idx and w do not match"));
     }
     let w = w.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     let e = py.detach(|| graph::fuzzy_union(n, k, &idx, w));
@@ -201,19 +208,19 @@ fn _fuzzy_union<'py>(
     ))
 }
 
-/// 本机每线程能独占的 L2 字节数；读不到返回 None（docs/06 §2.3）。
+/// L2 bytes each thread has to itself on this machine; None if unavailable (docs/06 §2.3).
 #[pyfunction]
 fn l2_bytes_per_thread() -> Option<usize> {
     cache::l2_bytes_per_thread()
 }
 
-/// 瓦片预算（字节）：每线程 L2 的一半，读不到时用保底值。
+/// Tile budget in bytes: half of the per-thread L2, or the fallback when unavailable.
 #[pyfunction]
 fn tile_budget_bytes() -> usize {
     cache::tile_budget_bytes()
 }
 
-/// 当前平台默认的 matmul 后端名。
+/// Name of the default matmul backend on this platform.
 #[pyfunction]
 fn default_matmul() -> &'static str {
     Matmul::platform_default().name()

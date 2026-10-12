@@ -1,9 +1,10 @@
-"""阶段 A 的正确性网（docs/04 §4）。
+"""Stage A correctness net (docs/04 §4).
 
-- 与 Rust 里不分块、不剪枝、全程 f64 的暴力解**逐位相同**；
-- 与 numpy float64 的独立实现在数值上一致（防止两边共用同一个 bug）；
-- 边权与对称化与原版 CosTaL 的代码逐位一致；
-- 分块尺寸、matmul 后端、布局、线程数都不改变输出（docs/06 §1）。
+- **Bit-identical** to the Rust brute force (no blocking, no pruning, f64 throughout);
+- numerically consistent with an independent numpy float64 implementation (so the two sides
+  can't share one bug);
+- edge weights and symmetrization match the original CosTaL code bit for bit;
+- block sizes, matmul backend, layout and thread count never change the output (docs/06 §1).
 """
 
 import itertools
@@ -31,7 +32,7 @@ def assert_same_knn(a, b):
     np.testing.assert_array_equal(na, nb)
 
 
-# ---------------------------------------------------------------- kNN 本身
+# ---------------------------------------------------------------- the kNN itself
 
 
 @pytest.mark.parametrize("seed", [0, 1])
@@ -51,9 +52,9 @@ def test_matches_independent_numpy_oracle():
     np.fill_diagonal(sim, -np.inf)
     order = np.argsort(-sim, axis=1, kind="stable")[:, :13]
     want_cos = np.take_along_axis(sim, order, axis=1)
-    # 前 k 个 cosine 的值逐行一致（与并列怎么排无关）
+    # The top-k cosine values agree row by row (independent of how ties are ordered)
     np.testing.assert_allclose(cos, want_cos[:, :12], rtol=0, atol=1e-12)
-    # 第 k 名与第 k+1 名拉得开的行，邻居集合也必须一致
+    # Rows with a clear gap between the k-th and (k+1)-th must also have identical neighbor sets
     clear = (want_cos[:, 11] - want_cos[:, 12]) > 1e-9
     assert clear.mean() > 0.99
     for i in np.flatnonzero(clear):
@@ -77,7 +78,7 @@ def test_output_independent_of_blocks_backend_layout_and_threads():
 def test_ties_break_by_original_index():
     rng = np.random.default_rng(4)
     protos = rng.normal(size=(10, 5)).astype(np.float32)
-    x = np.ascontiguousarray(np.tile(protos, (30, 1)))  # 行 i 是原型 i % 10
+    x = np.ascontiguousarray(np.tile(protos, (30, 1)))  # row i is prototype i % 10
     idx, cos, _ = ext._knn_exact(x, 10)[0]
     assert_same_knn((idx, cos, _), ext._knn_bruteforce(x, 10))
     np.testing.assert_array_equal(idx[0], np.arange(10, 101, 10))
@@ -89,7 +90,7 @@ def test_tie_heavy_integer_data_stays_exact():
     x[[0, 99, 499]] = 0.0
     got, stats = ext._knn_exact(x, 12)
     assert_same_knn(got, ext._knn_bruteforce(x, 12))
-    # 大量精确并列，兜底路径必然被触发
+    # Massive exact ties: the fallback path must be triggered
     assert stats["fallback_rows"] > 0
 
 
@@ -97,7 +98,7 @@ def test_public_knn_and_truncate():
     x = clustered(800, 10, 6)
     g = cp.knn(x, 15)
     assert g.idx.dtype == np.int32 and g.cos.dtype == np.float64
-    assert (g.idx != np.arange(800)[:, None]).all(), "k 不含自身"
+    assert (g.idx != np.arange(800)[:, None]).all(), "k excludes the row itself"
     t = cp.truncate(g, 6)
     g6 = cp.knn(x, 6)
     np.testing.assert_array_equal(t.idx, g6.idx)
@@ -124,17 +125,17 @@ def test_input_validation():
     sp = pytest.importorskip("scipy.sparse")
     with pytest.raises(TypeError):
         cp.knn(sp.csr_matrix(x), 5)
-    # float64、整数、非连续输入都会被转成 C 连续 float32
+    # float64, integer and non-contiguous input are all converted to C-contiguous float32
     np.testing.assert_array_equal(cp.knn(x.astype(np.float64), 5).idx, cp.knn(x, 5).idx)
     xf = np.asfortranarray(x)
     np.testing.assert_array_equal(cp.knn(xf, 5).idx, cp.knn(x, 5).idx)
 
 
-# ---------------------------------------------------------------- 边权：与原版逐位一致
+# ---------------------------------------------------------------- edge weights: bit-identical to the original
 
 
 def original_tani_from_cos(a, b, cos_val):
-    """原版 clustering.py 的 tani_from_cos（去掉 numba 装饰器，运算顺序原样）。"""
+    """tani_from_cos from the original clustering.py (numba decorator removed, order of operations kept)."""
     d = a * b * cos_val
     if d == 0:
         return 0
@@ -143,7 +144,7 @@ def original_tani_from_cos(a, b, cos_val):
 
 
 def original_calc_jaccard(i, idx):
-    """原版 clustering.py 的 calc_jaccard。"""
+    """calc_jaccard from the original clustering.py."""
     coefficients = np.fromiter(
         (len(set(idx[i]).intersection(set(idx[j]))) for j in idx[i]), dtype=float
     )
@@ -170,11 +171,11 @@ def test_jaccard_matches_original_bitwise():
     np.testing.assert_array_equal(cp.reweight(g, "jaccard"), want)
 
 
-# ---------------------------------------------------------------- 对称化：与原版逐位一致
+# ---------------------------------------------------------------- symmetrization: bit-identical to the original
 
 
 def original_build_graph_edges(rows, columns, weights, shape):
-    """原版 build_graph 去掉 igraph 那一步：返回 (sources, targets, weights)。"""
+    """The original build_graph without the igraph step: returns (sources, targets, weights)."""
     sp = pytest.importorskip("scipy.sparse")
     csr = sp.csr_matrix((np.array(weights), (np.array(rows), np.array(columns))), shape=shape)
     csr = csr + csr.transpose() - csr.multiply(csr.transpose())
@@ -196,7 +197,7 @@ def test_fuzzy_union_matches_original_bitwise():
         np.testing.assert_array_equal(a, b)
 
 
-# ---------------------------------------------------------------- 输入诊断（docs/04 §6.6）
+# ---------------------------------------------------------------- input diagnostics (docs/04 §6.6)
 
 
 def test_warns_when_rows_are_unit_normalised():
@@ -204,11 +205,11 @@ def test_warns_when_rows_are_unit_normalised():
     x /= np.linalg.norm(x, axis=1, keepdims=True)
     g = cp.knn(x, 5)
     assert g.meta["diagnostics"]["row_norm_cv"] < 1e-4
-    with pytest.warns(cp.CostalWarning, match="单位化"):
+    with pytest.warns(cp.CostalWarning, match="unit-normalized"):
         cp.reweight(g, "tanimoto")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        cp.reweight(g, "cosine")  # cosine 边权不涉及幅度，不该警告
+        cp.reweight(g, "cosine")  # cosine weights don't involve magnitude, so no warning
 
 
 def test_warns_when_columns_are_centered():
@@ -216,7 +217,7 @@ def test_warns_when_columns_are_centered():
     x -= x.mean(axis=0)
     g = cp.knn(x, 5)
     assert g.meta["diagnostics"]["columns_centered"]
-    with pytest.warns(cp.CostalWarning, match="居中"):
+    with pytest.warns(cp.CostalWarning, match="centered"):
         cp.reweight(g, "tanimoto")
 
 

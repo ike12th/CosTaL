@@ -1,0 +1,356 @@
+# CosTaL+ Architecture and Implementation Plan (v0, 2026-09-20)
+
+> Background: [docs/01](01_technical_plan.md) sets the direction; [docs/02](02_original_profile_report.md) has the measured numbers.
+> This document answers "**exactly how to build it, and in what order**".
+>
+> **Decided**: exact kNN stays (research reproduction needs it). So the effort goes into the exact route:
+> the first cut targets top-k (88–93% of exact kNN).
+
+---
+
+## 1. The architecture in one sentence
+
+**Collapse the original's "five rounds of shuttling data in and out of processes" into "one in-memory pipeline".**
+
+The original (every step fully materializes the data once):
+
+```
+X ──pp──> X' ──L2 normalize──> write .ijv text file (11.4s)
+                                  │
+                          p_knng subprocess (exact kNN)
+                                  │
+                           write .clu text file
+                                  │
+          read back + Python list parsing + per-edge Tanimoto (5.6s)
+                                  │
+              scipy sparse-matrix symmetrization + igraph graph build
+                                  │
+                              leidenalg (102.7s)
+```
+
+CosTaL+ (one process; the similarity matrix **never exists in full**):
+
+```
+X ──> normalize + cache the raw norms ‖·‖
+        │
+        └─> blocked pipeline: for each small tile (row block b × column block c)
+              ① BLAS computes the b×c similarities (only a few MB, stays in cache)
+              ② immediately merged into each row's top-k heap
+              ③ tile discarded ← the key point: the large b×N matrix never exists
+        │
+        └─> Tanimoto on the k survivors (reusing the a·b and ‖·‖² already at hand)
+        │
+        └─> emit the symmetrized CSR edge list directly
+                                  │
+                              Leiden
+```
+
+What gets eliminated, per the numbers in docs/02: text IPC 13.4s, Python edge-list assembly 5.6s,
+and the b×N memory round trip (the real source of top-k's 88–93%).
+
+---
+
+## 2. Why top-k is slow now, and how to make it fast
+
+This is the most valuable single spot in the whole project, so it gets its own section.
+
+### 2.1 Status quo: what numpy does
+
+```python
+sim = Xn[block] @ Xn.T          # materializes a b×N float32 matrix
+part = np.argpartition(sim, k)  # one introselect pass over all N values of each row
+```
+
+At N=265,627 one row is 265,627 float32 values (1 MB); at b=256 that is **272 MB**.
+This memory is **written once, then read back again**, and the M1 Pro's memory bandwidth is limited.
+`argpartition` is implemented in C, but it:
+
+1. **is single-threaded** — it uses 1 of the 8 cores;
+2. **has to see the whole row** — introselect is O(N) but with a sizeable constant, and its memory-access pattern is cache-unfriendly;
+3. **allocates extra memory** — it returns a b×N **int64** index array (265,627×256×8 = 544 MB).
+   This array is what pushed the 16 GB machine into swap during this profile.
+
+So of that 88–93%, **very little is actual computation; most of it is memory bandwidth and single-threading**.
+
+### 2.2 The CosTaL+ approach: fused blocking
+
+Instead of materializing b×N, loop over **small (b × c) tiles**:
+
+```
+for row block B in 0..N step b:          // parallelizable, one row block per thread
+    heaps[b] ← empty k-element min-heap
+    for column block C in 0..N step c:   // b×c sized to each core's own share of L2, see docs/06 §2.3
+        tile = Xn[B] · Xn[C]ᵀ             // BLAS sgemm, the tile stays in L2
+        for each row i, each candidate j in tile:
+            if tile[i][j] > heaps[i].min:          // the vast majority are rejected right here
+                heaps[i].replace_min(j, tile[i][j])
+    // the tile is discarded when it goes out of scope
+```
+
+> **Revised (2026-10-12).** The original text said b≈256, c≈4096 (4 MB per thread).
+> That only barely holds on the M1: 3 performance cores × 4 MB exactly fills the 12 MB shared L2,
+> leaving no room for column blocks and heaps; on older x86 with a 256 KB L2 it simply overflows.
+> Tile size is now "a safe default + runtime probing", see docs/06 §2.
+> Also, each row actually keeps top-(k+m) and hands it to f64 rescoring, which guarantees consistent results across platforms, see docs/06 §1.
+
+Why this is fast:
+
+- **b×N no longer exists**: peak memory drops from 272 MB to one tile (hundreds of KB to a few MB, depending on the platform),
+  which stays in cache the whole time and does not consume memory bandwidth. As a side effect this fixes the OOM — **memory no longer grows with N**.
+- **The rejection path is extremely short**: at k=10, N=260k, the probability that a candidate makes the top-10 is about
+  10/265627 ≈ 0.004%. In other words, **99.996% of candidates are discarded after a single floating-point comparison**,
+  and the branch predictor learns this very accurately. That is an order of magnitude cheaper than "scan the whole row, then select".
+- **Naturally parallel**: row blocks are fully independent, so 8 cores simply run 8 ways (rayon).
+  On the numpy path matmul is multithreaded but top-k is single-threaded; that asymmetry is gone.
+- **matmul is still handed to an existing matrix library** (macOS: Accelerate/AMX; other platforms:
+  a pure-Rust kernel, see docs/06 §3); we only write
+  steps ② and ③ — exactly what §1.2 means by "this is the part worth writing ourselves".
+
+Expected gain: turn exact kNN from "matmul 7–12% + top-k 88–93%" into
+"matmul is the bulk + top-k is a rounding error". The matmul part is already backed by BLAS,
+so **total time should approach the matmul column of the profile**
+(N=100k: 26.6s rather than 225s). This is the number the first stage has to deliver.
+
+### 2.3 A semantic detail that must not go wrong
+
+**Neighbors are selected by cosine, edge weights are computed with Tanimoto, and the order must not be reversed.**
+
+This is exactly what the original does: `p_knng` selects neighbors by cosine on **L2-normalized** data,
+and `build_tani_graph` then computes the Tanimoto edge weights from the **unnormalized** raw norms
+(verified in docs/02 §4). Because the raw norms span a 5.8× range,
+**putting Tanimoto into the top-k comparator would change the selected neighbor set**,
+and the result would no longer be CosTaL. Hence:
+
+```
+top-k comparator ── looks only at cosine
+     ↓ (k survivors)
+Tanimoto ── T = d / (‖a‖² + ‖b‖² − d), where d = ‖a‖·‖b‖·cos
+```
+
+`‖·‖` is cached along the way during normalization, O(N), once. This is the "reuse a·b and ‖·‖²" of §1.1;
+measured at 1% of the time, it really is a rounding error.
+
+---
+
+## 3. Where pruning (p-L2knng) fits
+
+The fused blocking of §2.2 is an **unpruned exact solution**: it dutifully computes all N² inner products.
+The value of p-L2knng is **skipping whole batches of candidates that cannot make the top-k** — using a norm upper bound to prove
+"even the largest possible inner product in this block cannot reach the current k-th place", so the whole block is skipped.
+
+The key architectural judgment:
+
+> **Pruning and blocked BLAS are two candidate-generation strategies for the same exact answer.**
+> They produce exactly the same result; only the number of skipped candidates differs.
+
+So they sit **behind the same trait**, and this naturally gives us a handy way to verify:
+
+```
+BlockedExact (unpruned, slow but obviously correct)
+      ↑ compared edge by edge, must match exactly
+PrunedExact (pruned, fast)
+```
+
+**Build the unpruned version first.** Reasons:
+
+1. It already captures the main gain of §2.2 (top-k is no longer the bottleneck), so the numbers get banked first;
+2. It is the pruned version's **golden reference** — pruning bugs are all "missed a neighbor that should have made the top-k",
+   and without a reference such bugs are simply invisible; the metrics just quietly get a tiny bit worse;
+3. The gain from pruning depends heavily on the data distribution (dimension, sparsity, norm distribution);
+   how much it saves on 32-dimensional dense data like Levine_32dim is **something we only know after measuring** —
+   we cannot write it all first and only then discover it barely saves anything.
+
+> **Addendum (2026-10-12): L2Knng itself is not a fit for Levine.** L2Knng's pruning is built
+> on an inverted index and was designed for sparse high-dimensional data; Levine_32dim, measured on the full set, is **100% dense**
+> (32/32 nonzeros in every row, docs/06 §5.1), so the inverted index has nothing to grab onto here.
+> On Levine, then, all Stage D can hope for is docs/04 §3's norm window (tanimoto) and
+> cone bound (cosine) — both are provable bounds and remain exact. L2Knng moves to the sparse backend
+> (Stage S, docs/06 §5), using only its exact mode.
+
+---
+
+## 4. Layering and crate split
+
+```
+costal-core/              pure Rust, knows nothing about Python, can be cargo test'ed / bench'ed on its own
+│
+├── prep      normalization + norm cache. Output: (Xn: row-major f32, norms: Vec<f32>)
+│
+├── knn       trait KnnIndex { fn search(&self, k) -> Neighbors }
+│             ├── exact::Blocked   fused blocking of §2.2                 ← first cut
+│             ├── exact::Pruned    norm-window / cone-bound pruning       ← second cut (docs/04 §3)
+│             ├── exact::Sparse    L2Knng-style inverted index, sparse input ← Stage S (docs/06 §5)
+│             └── approx::Hnsw     large scale / face pipeline, opt-in    ← later, never the default
+│             Neighbors = { idx: Vec<u32>, cos: Vec<f32> } (row-major N×k)
+│
+├── weight    cos + norms → Tanimoto / Jaccard / raw cosine
+│             (fused at the knn exit, no second pass over the edge list)
+│
+├── graph     symmetrization + self-loop removal + CSR. Replaces the original's scipy + igraph glue
+│
+└── cluster   Leiden. **Not in the first stage**, see §5
+```
+
+```
+costal-py/                only type conversion and error mapping, no logic
+│  What is exposed to Python follows a "minimal usable surface":
+│    build_graph(X, k, method, backend) -> (rows, cols, weights)
+│    find_communities(X, ...)           -> labels      ← once the cluster layer is in place
+```
+
+### 4.1 Why core and py are separate
+
+- **Benchmarks run on their own**: `cargo bench` does not need to start a Python interpreter,
+  so the feedback loop while optimizing kernels is much shorter;
+- **A C ABI comes almost for free** (docs/01 §3 item 3): core is already pure Rust,
+  so adding a `costal-c` crate that exports `extern "C"` is enough, with no refactoring;
+- **Bugs in the binding layer and bugs in the algorithm stay separate.**
+
+### 4.2 Which layer the backends (BLAS / SIMD / GPU) live in
+
+Not a separate layer, but **an implementation detail inside the knn layer**:
+
+- `exact::Blocked` calls the matrix library's `sgemm` — Apple goes through Accelerate (which uses AMX automatically),
+  other platforms use a pure-Rust kernel, and OpenBLAS/MKL are not bundled (changed 2026-10-12, reasons in docs/06 §3).
+  Selected with `cfg`, transparent to the layers above;
+- The SIMD (NEON/AVX) for the top-k merge step also lives here;
+- Metal/CUDA will later be **a fourth `KnnIndex` implementation**, not a cross-cutting layer.
+  As for the "how far to take Metal" question in docs/01 §6 item 2:
+  thanks to the trait boundary, we can do only matmul first and later offload top-k along with it,
+  without affecting the other layers.
+
+---
+
+## 5. What about Leiden (first stage: hands off)
+
+The numbers in docs/02 §3.2 say Leiden is worth writing, but **not now**; the reason is ordering:
+
+- On the exact route Leiden is only 10% (102.7s out of 1098.7s);
+  only after kNN has been knocked down from 1098.7s will Leiden's share surface;
+- `leidenalg` is a mature C++ implementation; our own first version would most likely be slower and fail to match its results,
+  while "no loss of accuracy" is this project's first goal;
+- **There is a possibly free optimization nobody has tried**: the original hard-codes `n_iterations` to 10
+  (in `bc()` it is even 100). The Leiden paper recommends iterating until convergence,
+  which usually stabilizes within 2–3 rounds. If the 2-round and 10-round partitions agree, that saves 80% right here.
+  **This is an experiment, not coding work, and it should come before writing a Rust Leiden.**
+
+So the first stage's deliverable looks like this:
+
+```python
+rows, cols, weights = costal_plus.build_graph(X, k=10)   # Rust
+G = ig.Graph(...); la.find_partition(G, ...)             # still Python
+```
+
+This way **we get the full end-to-end speedup without writing a single line of Leiden**,
+and because we share the same Leiden implementation with the original, the accuracy comparison is clean
+(partition differences can only come from the graph, not from the clustering algorithm).
+
+---
+
+## 6. Implementation order and the acceptance criteria for each step
+
+Every stage must report two numbers, **correctness** and **speed**; if either is missing, the stage is not done.
+The data is always Levine_32dim (265,627 cells, with 14 manual gating labels).
+
+| Stage | What | Correctness criterion | Speed criterion |
+|---|---|---|---|
+| **A** | `exact::Blocked` + fused Tanimoto + `build_graph` emitting the edge list | Neighbor sets **identical entry by entry** to brute force (full comparison for N≤20k); end-to-end ARI/NMI on par with the original CosTaL | Compared against docs/02's 1098.7s (N=260k). Goal: approach the matmul column |
+| **B** | `graph` layer moves into Rust (symmetrization + CSR) | Edge list matches Stage A + scipy | Eliminates docs/02's 5.6s |
+| **C** | Leiden `n_iterations` experiment | Pairwise ARI between the partitions at 2/3/5/10 rounds | If 2 rounds suffice, saves ~80% of the 102.7s |
+| **D** | `exact::Pruned` (norm window / cone bound, docs/04 §3) | **Identical entry by entry to Stage A** (this is a hard gate) | Speedup relative to A; if <1.5×, not worth keeping |
+| **E** | `approx::Hnsw` behind the trait (opt-in, never the default) | Recall vs A; how much ARI drops | For large-scale use / the face pipeline (nas-manager) |
+| **F** | Metal / CUDA backend | Same as A | Whether to do it depends on matmul's share after A |
+| **S** | `exact::Sparse` (L2Knng-style, exact mode), followed by `backend="auto"` | Identical entry by entry to brute force | Speedup relative to A on gene-level scRNA-seq |
+
+> **C comes before D** on purpose: C is an experiment (a few hours), D is real engineering (a few days).
+> Take the cheap gain first, then see whether the expensive one is still worth doing.
+>
+> **2026-10-12**: Stage A carries f64 rescoring and the cross-platform tile strategy from day one;
+> Stage S (sparse backend) is new. Details in docs/06 §7.
+
+### 6.1 What we will not do (to avoid scope creep)
+
+- **Do not touch `pp` preprocessing**: measured at 0.23s, a 0% share. Keeping it on the Python side is fine.
+- **Do not write our own BLAS**: matmul is only 7–12% of exact kNN. macOS uses Accelerate,
+  other platforms use an existing pure-Rust kernel (docs/06 §3); OpenBLAS/MKL are not bundled either.
+- **No dimensionality reduction** (docs/01 §6 item 4): PCA changes the similarity semantics,
+  so it stays out of the default pipeline until the "no loss of accuracy" goal is settled.
+
+---
+
+## 7. Which items of docs/01 §6 this architecture answers
+
+| §6 open item | Current status |
+|---|---|
+| 1. Is exact kNN really needed | **Decided: yes**. Effort goes into the exact route; the first cut is top-k |
+| 2. How far to take Metal | Deferred. The trait boundary lets it come later; decide after Stage A based on matmul's share |
+| 3. Whether to write Leiden ourselves | Run the Stage C tuning experiment first; no rush to write it |
+| 4. Whether dimensionality reduction enters the default pipeline | No, see §6.1 |
+| 5. Version/API stability | Stage A exposes a single function, `build_graph`, a small surface that is easy to change; `find_communities` is decided once the cluster layer is in place |
+
+---
+
+## 8. Stage A results (2026-10-12)
+
+> Environment: M1 Pro (6 performance cores + 2 efficiency cores, 16 GB), macOS 26.5.2, native arm64 Python 3.9.6,
+> matmul via Accelerate. 8.4 GB of swap was in use during the tests, so the absolute seconds are on the conservative side.
+> Commands and raw numbers: `bench/stage_a.py`, `bench/out/stage_a.json`. The results were produced by the code at commit 3d3e8d2
+> (the extension was built before the version number was changed to 0.1.0, so the version field in the json reads 0.0.1; the code is the same).
+
+### 8.1 Correctness
+
+| Check | Result |
+|---|---|
+| Against a Rust f64 brute-force solution (Levine subsets, N = 10k, 20k) | **Bit-identical** (neighbors and cosine) |
+| Synthetic data: tile size × matmul backend × layout × thread count | All bit-identical (`cargo test`, `pytest`) |
+| Many exact ties (integer data, duplicate rows, zero rows) | Bit-identical, thanks to the fallback below |
+| Tanimoto / Jaccard / fuzzy union vs the original code | Bit-identical (`tests/test_knn.py`) |
+| Against the original `bc()` path (deduplicated Levine, N = 50k) | Neighbor sets **100% identical**; same edge count (401,424); max relative Tanimoto difference 6e-8 (our input is f32) |
+| Same, Leiden partitions (5 seeds) | With the same seed, the two sides' partitions have **ARI = 1.0 (all 5 seeds)**; against the gating labels both sides score ARI 0.804 ± 0.073, NMI 0.875 ± 0.026 |
+
+Leiden's own agreement across seeds is only ARI 0.833 — **Leiden's randomness on the same graph is much larger than the
+difference between the two implementations** (which is zero). Accuracy numbers from a single seed cannot be used to compare methods.
+
+**A design correction relative to docs/06 §1.2**: the margin m alone is not enough. With many exact ties, the tie group at k-th place can be larger than
+k+m, and the coarse selection's tie-breaking can then drop the candidate that should win by original index (this actually happened on the integer test data). It is now
+a provable bound: a candidate that did not enter the heap has a true cosine no greater than heap root + ε (ε = (d+4)·2⁻²³); k-th place strictly above this bound
+⇒ exact, otherwise the whole row is collected and rescored. **On Levine the fallback count is 0 at every size.**
+
+### 8.2 Speed (raw files, not deduplicated; sizes aligned with docs/02)
+
+| N | Exact kNN | Edge weights + symmetrization | docs/02 reference |
+|---:|---:|---:|---|
+| 10,000 | 0.022 s | 0.001 s | blocked BLAS 2.15 s; phenograph 22.6 s |
+| 50,000 | 0.31 s | 0.006 s | blocked BLAS 40.7 s; phenograph 75.0 s |
+| 100,000 | 1.02 s | 0.017 s | numpy matmul alone 26.6 s (the "approach it" target originally set for this stage) |
+| 265,627 | **6.47 s** | 0.043 s | blocked BLAS **1098.7 s** (≈170×) |
+
+- The original's writing `.ijv` + parsing `.clu` + building the graph (S1 + S3, 17.0 s on the full set) now takes 43 ms.
+- On deduplicated Levine 50k: the original `bc()` graph build takes 29.0 s (phenograph 28.0 s of that), CosTaL+ 0.35 s.
+- **The bottleneck has moved to Leiden**: on all 265,627 rows, graph build 7.6 s and Leiden 112 s; on the 161,443 cells after deduplication,
+  graph build 3.0 s and Leiden 69 s. **Stage C (the `n_iterations` experiment) is now the most valuable next step.**
+
+### 8.3 Tiles and matmul backends (N = 50k sweep, verifying docs/06 §2–§3)
+
+- Accelerate is about 2.2× faster than pure-Rust `gemm` (0.43 s vs 0.93 s, each at its best tile).
+- Tiles between 128 KB–2 MB form a plateau (< 15% apart); ≤ 64 KB is clearly slower (fixed overhead per matmul call).
+- The cache-derived default (4 MB of L2 per thread → 2 MB tile, 512 rows × 1024 columns) was the fastest setting in the sweep: 0.42 s.
+- The combined cost per candidate is about 3 cycles (including matmul; a rough estimate assuming 8 cores at 3.2 GHz). How that splits between matmul and the scan
+  **was not measured separately**; docs/04 §1's "about 1 cycle/candidate" is still an estimate.
+
+### 8.4 Duplicate cells in Levine_32dim (docs/02 addendum)
+
+In the upstream file every gated cell appears twice (104,184 pairs); the true cell count is 161,443.
+
+- The original `bc()`'s `idx[:, 1:]` breaks on duplicate cells (docs/04 §4 item 4); without deduplication, the differences from the original
+  all come from this and from exact ties between the copies — **not a single row is a genuine neighbor difference**.
+- **Duplicates inflate the accuracy evaluation** (full set, CosTaL default parameters, 5 Leiden seeds):
+
+| Data | Cells | ARI (vs gating labels) | NMI |
+|---|---:|---:|---:|
+| Deduplicated | 161,443 | 0.766 ± 0.008 | 0.860 ± 0.004 |
+| Raw file (with duplicates) | 265,627 | 0.861 ± 0.029 | 0.880 ± 0.015 |
+
+ARI is inflated by about 0.095, far beyond the seed-to-seed variation. A plausible explanation: the cells being scored are exactly the ones that were duplicated,
+so the density of their populations was doubled. **Only CosTaL was measured here**; whether other methods are inflated the same way on this file, and whether the ranking
+would change, was not measured. From now on, CosTaL+ accuracy evaluations always use the deduplicated data (docs/02 addendum).

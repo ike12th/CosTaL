@@ -1,8 +1,8 @@
 name: wheels
 
-# 交付形态是 `pip install` 即可用（docs/01 §3）。目标机器是 macos-arm64 与
-# linux-x86_64，但 wheel 覆盖面按"所有能覆盖的平台"来，省得调用方挑环境。
-# abi3-py39：每个平台一个 wheel 通吃 CPython 3.9+。
+# The delivery form is "works after `pip install`" (docs/01 §3). The target machines are
+# macos-arm64 and linux-x86_64, but wheels cover every platform we can, so callers never have to
+# pick an environment. abi3-py39: one wheel per platform covers CPython 3.9+.
 
 on:
   push:
@@ -19,10 +19,10 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          # ---- 主力目标 ----
+          # ---- primary targets ----
           - { runner: macos-14,       target: aarch64-apple-darwin,       manylinux: auto }
           - { runner: ubuntu-latest,  target: x86_64-unknown-linux-gnu,   manylinux: "2_17" }
-          # ---- 其余覆盖面 ----
+          # ---- additional coverage ----
           - { runner: macos-13,       target: x86_64-apple-darwin,        manylinux: auto }
           - { runner: ubuntu-latest,  target: aarch64-unknown-linux-gnu,  manylinux: "2_17" }
           - { runner: ubuntu-latest,  target: x86_64-unknown-linux-musl,  manylinux: musllinux_1_2 }
@@ -41,7 +41,7 @@ jobs:
           manylinux: ${{ matrix.platform.manylinux }}
           sccache: "true"
       - name: smoke test (native targets only)
-        # 交叉编译出来的 wheel 在 runner 上跑不了，跳过。
+        # Cross-compiled wheels can't run on the runner; skip them.
         if: ${{ !contains(matrix.platform.target, 'aarch64-unknown-linux') && !contains(matrix.platform.target, 'musl') }}
         shell: bash
         run: |

@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""对原版 CosTaL 做分阶段 profile。
+"""Stage-by-stage profile of the original CosTaL.
 
-目的只有一个（docs/01 §1.1 的前置动作）：用真实数字确认或推翻
-"瓶颈只有一个地方：kNN 建图"。
+It has one purpose (the prerequisite in docs/01 §1.1): confirm or refute, with real numbers,
+"there is only one bottleneck: building the kNN graph".
 
-口径说明
---------
-* 计时的是**原版 CosTaL 自己的函数**（`save_as_ijv` / `build_tani_graph` /
-  `la_find_partition`），不是我重写的等价物——否则测的是我的代码。
-* kNN 那一格测不了原版：CosTaL 的精确 kNN 是随包分发的 `p_knng_Linux`，
-  ELF x86-64 二进制，本机（macOS arm64）跑不了。所以 kNN 一栏给三个数：
-    - `bruteforce`：CosTaL 在非 Linux 平台实际走的回退路径
-      （`phenograph.bruteforce_nn`，O(n²)）；
-    - `blas_blocked`：分块 BLAS matmul + argpartition，代表"一个实现得当的
-      精确 kNN"的量级，同时是 Rust 版要打败的下限；
-    - `hnsw`：近似 kNN（docs/01 §2 的 ② 路线）。
-  三个数把真实 kNN 成本夹在中间，足够判断它是不是"绝大部分时间"。
-* `build_tani_graph` 会被再拆一层（parse / tanimoto / igraph），拆解部分是
-  复刻同样的代码，已标注 `decomposed`。
+Methodology
+-----------
+* What is timed is **the original CosTaL's own functions** (`save_as_ijv` /
+  `build_tani_graph` / `la_find_partition`), not a rewritten equivalent — otherwise we would
+  be measuring our own code.
+* The kNN cell can't be measured on the original: CosTaL's exact kNN is the bundled
+  `p_knng_Linux`, an ELF x86-64 binary that can't run on this machine (macOS arm64). So the
+  kNN column gives three numbers:
+    - `bruteforce`: the fallback CosTaL actually takes on non-Linux platforms
+      (`phenograph.bruteforce_nn`, O(n²));
+    - `blas_blocked`: blocked BLAS matmul + argpartition, the order of magnitude of "a
+      well-implemented exact kNN", and the floor the Rust version has to beat;
+    - `hnsw`: approximate kNN (route ② in docs/01 §2).
+  The three bracket the real kNN cost, which is enough to tell whether it is "most of the time".
+* `build_tani_graph` is broken down one level further (parse / tanimoto / igraph); the
+  breakdown replicates the same code and is labeled `decomposed`.
 """
 from __future__ import annotations
 
@@ -62,10 +64,10 @@ def stage(name: str, sink: dict | None = None):
 
 
 # --------------------------------------------------------------------------
-# 数据
+# Data
 # --------------------------------------------------------------------------
-# Levine_32dim 的 32 个表面 marker：去掉 Time/Cell_length/DNA1/DNA2/Viability
-# 和 file_number/event_number/label/individual 这些非 marker 列。
+# The 32 surface markers of Levine_32dim: drop Time/Cell_length/DNA1/DNA2/Viability
+# and the non-marker columns file_number/event_number/label/individual.
 NON_MARKER = {
     "Time", "Cell_length", "DNA1", "DNA2", "Viability",
     "file_number", "event_number", "label", "individual",
@@ -87,14 +89,14 @@ def load_levine(n: int | None, seed: int = 0):
 
 
 # --------------------------------------------------------------------------
-# kNN 的三种测法
+# Three ways to measure kNN
 # --------------------------------------------------------------------------
 def knn_blas_blocked(x: np.ndarray, k: int, block: int = 256):
-    """分块 BLAS matmul + argpartition。返回 (idx, cos) 且不含自身。
+    """Blocked BLAS matmul + argpartition. Returns (idx, cos), excluding self.
 
-    block 取 256 而不是更大：`argpartition` 会分配一个 `block x n` 的 int64
-    中间数组，265k 细胞下 block=1024 就是 2.2 GB/块，16 GB 的机器会开始换页，
-    测出来的就不是算法时间而是 swap 时间。"""
+    block is 256 rather than larger: `argpartition` allocates a `block x n` int64 intermediate,
+    so with 265k cells block=1024 means 2.2 GB per block and a 16 GB machine starts paging —
+    then we'd be timing swap, not the algorithm."""
     xn = normalize(x, norm="l2", axis=1).astype(np.float32, copy=False)
     xn = np.ascontiguousarray(xn)
     n = xn.shape[0]
@@ -103,8 +105,8 @@ def knn_blas_blocked(x: np.ndarray, k: int, block: int = 256):
     for s in range(0, n, block):
         e = min(s + block, n)
         sim = xn[s:e] @ xn.T                      # (b, n)
-        sim[np.arange(e - s), np.arange(s, e)] = -np.inf   # 去掉自身
-        np.negative(sim, out=sim)                 # 原地取负，省一份 b x n
+        sim[np.arange(e - s), np.arange(s, e)] = -np.inf   # remove self
+        np.negative(sim, out=sim)                 # negate in place, saving one b x n copy
         part = np.argpartition(sim, k - 1, axis=1)[:, :k]
         vals = np.take_along_axis(sim, part, axis=1)
         order = np.argsort(vals, axis=1)
@@ -115,7 +117,7 @@ def knn_blas_blocked(x: np.ndarray, k: int, block: int = 256):
 
 
 def knn_bruteforce(x: np.ndarray, k: int):
-    """CosTaL 在 macOS 上实际走的路径。"""
+    """The path CosTaL actually takes on macOS."""
     from phenograph import bruteforce_nn
 
     d, idx = bruteforce_nn.knnsearch(x, k + 1, "cosine")
@@ -137,11 +139,11 @@ def knn_hnsw(x: np.ndarray, k: int, ef: int = 100, m: int = 16):
 
 
 # --------------------------------------------------------------------------
-# 把 kNN 结果写成 p_knng 的 .clu 格式，好让 build_tani_graph 原样跑
+# Write kNN results in p_knng's .clu format so build_tani_graph can run unchanged
 # --------------------------------------------------------------------------
 def write_clu(path: Path, idx: np.ndarray, cos: np.ndarray) -> None:
-    """CLUTO 风格：首行 `nrows ncols nnz`，之后每行 k 组 `1-based下标 值`。
-    1-based 是因为 build_tani_graph 里会 `i - 1`（原注释写着 "bug in L2knng"）。"""
+    """CLUTO style: first line `nrows ncols nnz`, then per row k pairs of `1-based-index value`.
+    1-based because build_tani_graph applies `i - 1` (the original comment says "bug in L2knng")."""
     n, k = idx.shape
     with open(path, "w", encoding="ascii") as f:
         f.write(f"{n} {n} {n * k}\n")
@@ -150,7 +152,7 @@ def write_clu(path: Path, idx: np.ndarray, cos: np.ndarray) -> None:
 
 
 # --------------------------------------------------------------------------
-# build_tani_graph 的内部拆解（复刻同样的代码，标注为 decomposed）
+# Breakdown of build_tani_graph (replicates the same code, labeled decomposed)
 # --------------------------------------------------------------------------
 def decompose_build_tani_graph(clu_file: Path, data: np.ndarray) -> dict[str, float]:
     import itertools
@@ -204,14 +206,14 @@ def run(n: int | None, k: int, knn_methods: list[str], tmp: Path) -> dict:
     with stage("S0b pp (arcsinh/5)"):
         x = pp(x_raw, platform="mass")
 
-    # --- S1: CosTaL 把矩阵写成 .ijv 文本喂给 p_knng ---
+    # --- S1: CosTaL writes the matrix as .ijv text for p_knng ---
     ijv = tmp / f"prof_{tag}.ijv"
     with stage("S1 save_as_ijv"):
         save_as_ijv(str(ijv), normalize(x, norm="l2", axis=1, copy=True))
     ijv_mb = ijv.stat().st_size / 2**20
     ijv.unlink()
 
-    # --- S2: kNN 的三种测法 ---
+    # --- S2: three ways to measure kNN ---
     knn_times: dict[str, float] = {}
     idx = cos = None
     for m in knn_methods:
@@ -220,7 +222,7 @@ def run(n: int | None, k: int, knn_methods: list[str], tmp: Path) -> dict:
               "hnsw": knn_hnsw}[m]
         with stage(f"S2 knn[{m}]", knn_times):
             r_idx, r_cos = fn(x, k)
-        if idx is None:          # 后续阶段统一用第一个方法的结果
+        if idx is None:          # later stages all use the first method's result
             idx, cos = r_idx, r_cos
     TIMINGS.update(knn_times)
 
@@ -228,7 +230,7 @@ def run(n: int | None, k: int, knn_methods: list[str], tmp: Path) -> dict:
     with stage("S2b write .clu (harness)"):
         write_clu(clu, idx, cos)
 
-    # --- S3: 原版 build_tani_graph，原样跑 ---
+    # --- S3: the original build_tani_graph, run unchanged ---
     with stage("S3 build_tani_graph"):
         g = build_tani_graph(str(clu), x, local=False, method="tani")
     print(f"    graph = {g.vcount()} nodes / {g.ecount()} edges", flush=True)
@@ -241,7 +243,7 @@ def run(n: int | None, k: int, knn_methods: list[str], tmp: Path) -> dict:
     n_clusters = len(set(part.membership))
     print(f"    clusters = {n_clusters}", flush=True)
 
-    print("  -- build_tani_graph 内部拆解 --", flush=True)
+    print("  -- build_tani_graph breakdown --", flush=True)
     decomposed = decompose_build_tani_graph(clu, x)
     clu.unlink()
 
@@ -259,7 +261,7 @@ def main() -> int:
     ap.add_argument("-k", type=int, default=10)
     ap.add_argument("--knn", default="blas_blocked,hnsw")
     ap.add_argument("--bruteforce-max", type=int, default=50000,
-                    help="bruteforce 是 O(n^2)，超过这个规模就不跑了")
+                    help="bruteforce is O(n^2); skip it above this size")
     ap.add_argument("--out", default=str(HERE / "out" / "profile.json"))
     args = ap.parse_args()
 

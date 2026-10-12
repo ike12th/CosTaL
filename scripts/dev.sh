@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# 本地开发循环：编译 + 装进当前 python 环境 + 跑测试。
-# 用法：scripts/dev.sh [python 解释器]（默认用 PATH 上的 python3）
+# Local dev loop: build + install into the current python environment + run the tests.
+# Usage: scripts/dev.sh [python interpreter]  (defaults to python3 on PATH)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$HOME/.cargo/bin:$PATH"
 
 PY="${1:-python3}"
-echo "==> 解释器: $("$PY" -c 'import sys,platform;print(sys.executable, platform.machine(), sys.version.split()[0])')"
+echo "==> interpreter: $("$PY" -c 'import sys,platform;print(sys.executable, platform.machine(), sys.version.split()[0])')"
 
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings

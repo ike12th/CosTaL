@@ -1,8 +1,9 @@
 name: CI
 
-# 私有仓库的 Actions 分钟有额度：Linux 按 1 倍、Windows 按 2 倍、macOS 按 10 倍计。
-# 所以日常推送只跑 Linux；macOS / Windows 在手动触发（勾选 all_os）和打 v* 标签时跑。
-# macOS arm64 本机开发时也会跑（scripts/dev.sh）。只改文档、报告、调研笔记的提交不触发。
+# Actions minutes are budgeted for this private repo: Linux counts 1x, Windows 2x, macOS 10x.
+# So routine pushes run Linux only; macOS / Windows run on manual dispatch (with all_os) and on
+# v* tags. macOS arm64 is also covered by local development (scripts/dev.sh). Commits that only
+# touch docs, reports or research notes don't trigger CI.
 
 on:
   push:
@@ -14,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       all_os:
-        description: "同时跑 macOS 与 Windows（分钟按 10 倍 / 2 倍计）"
+        description: "also run macOS and Windows (minutes count 10x / 2x)"
         type: boolean
         default: true
 
@@ -74,7 +75,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # scipy：tests/test_knn.py 用原版的 scipy 对称化代码做逐位对照
+      # scipy: tests/test_knn.py compares bit for bit against the original scipy symmetrization
       - run: pip install --upgrade pip maturin pytest numpy scipy
       - run: pip install -e . --no-build-isolation
       - run: pytest -q

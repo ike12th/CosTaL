@@ -6,7 +6,7 @@ Why (c) matters for CosTaL+: Tanimoto similarity can be written as a function of
 T = ‖a‖‖b‖cos / (‖a‖² + ‖b‖² − ‖a‖‖b‖cos) = cos / (r + 1/r − cos).
 So T adds information over cosine only through r. For a fixed cosine it is largest when r = 1 and falls as the norms diverge. Whatever drives the row norm (sequencing depth, profile concentration, distance from the dataset centroid) is exactly what the Tanimoto reweighting penalizes. For non-negative vectors T ∈ [0, 1]. For signed vectors T ∈ [−1/3, 1] (at r = 1 and cos = −1, T = −1/3). This is my own algebra, not taken from a source.
 
-Local check of the original CosTaL preprocessing: `bench/reference/CosTaL-0.0.2.4/CosTaL/clustering.py` lines 98–103 run `filter_cells(min_genes=200)`, `filter_genes(min_cells=3)`, `highly_variable_genes(n_top_genes=2000, flavor='seurat_v3')`, then `log1p`, then subset to HVGs. There is no `normalize_total` and no PCA. The kNN is computed on the sparse 2000-gene log1p matrix. `docs/06_跨平台与确定性.md:166` records this as the "high-dimensional sparse" input class served by the L2Knng-style inverted index.
+Local check of the original CosTaL preprocessing: `bench/reference/CosTaL-0.0.2.4/CosTaL/clustering.py` lines 98–103 run `filter_cells(min_genes=200)`, `filter_genes(min_cells=3)`, `highly_variable_genes(n_top_genes=2000, flavor='seurat_v3')`, then `log1p`, then subset to HVGs. There is no `normalize_total` and no PCA. The kNN is computed on the sparse 2000-gene log1p matrix. `docs/06_cross_platform_and_determinism.md` (§5.1) records this as the "high-dimensional sparse" input class served by the L2Knng-style inverted index.
 
 ---
 

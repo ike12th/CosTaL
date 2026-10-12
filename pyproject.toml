@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "costal-plus"
 version = "0.1.0"
-description = "CosTaL 的高性能重写：cosine kNN 图 → Tanimoto 边权精修 → Leiden 社区发现"
+description = "A high-performance rewrite of CosTaL: cosine kNN graph -> Tanimoto edge reweighting -> Leiden community detection"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Yijia Li" }]
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = ["numpy>=1.21"]
 
 [project.optional-dependencies]
-# profile / benchmark 用，装 wheel 的人不需要
+# for profiling / benchmarks; not needed by people installing the wheel
 bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
 dev = ["pytest", "maturin>=1.7", "scipy"]
 

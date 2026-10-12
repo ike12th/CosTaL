@@ -9,7 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-# 非苹果平台的 matmul 内核（docs/06 §3）；不要 f16，外层并行由 rayon 负责。
+# Matmul kernel for non-Apple platforms (docs/06 §3); no f16, and rayon handles the outer parallelism.
 gemm = { version = "0.19", default-features = false, features = ["std"] }
 rayon = "1.12"
 

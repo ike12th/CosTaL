@@ -1,10 +1,11 @@
-"""CosTaL+ — CosTaL 的高性能重写。
+"""CosTaL+ — a high-performance rewrite of CosTaL.
 
-方法来源：Li Y, Nguyen J, Anastasiu DC, Arriaga EA. *CosTaL: an accurate and
+Method: Li Y, Nguyen J, Anastasiu DC, Arriaga EA. *CosTaL: an accurate and
 scalable graph-based clustering algorithm for high-dimensional single-cell data
 analysis.* Briefings in Bioinformatics, 2023. doi:10.1093/bib/bbad157
 
-阶段 A：精确 kNN + 边权 + 对称化已就位，Leiden 仍用 leidenalg（docs/03 §5）::
+Stage A: exact kNN + edge weights + symmetrization are in place; Leiden still uses leidenalg
+(docs/03 §5)::
 
     rows, cols, w = costal_plus.build_graph(X, k=10)
 """

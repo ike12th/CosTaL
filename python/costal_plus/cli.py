@@ -1,7 +1,7 @@
-"""CosTaL+ 命令行入口（骨架）。
+"""CosTaL+ command-line entry point (skeleton).
 
-交付形态之一是"不写 Python 也能用"（docs/01 §3）。现在只有 `info`，
-用来在没有 Python REPL 的环境里确认 wheel 装对了。
+One delivery form is "usable without writing Python" (docs/01 §3). For now there is only
+`info`, to confirm the wheel installed correctly where no Python REPL is at hand.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="costal-plus", description="CosTaL+ CLI")
     parser.add_argument("--version", action="version", version=f"costal-plus {__version__}")
     sub = parser.add_subparsers(dest="cmd")
-    sub.add_parser("info", help="打印构建信息，确认扩展模块装对了")
+    sub.add_parser("info", help="print build info to confirm the extension module is installed correctly")
 
     args = parser.parse_args(argv)
     if args.cmd in (None, "info"):

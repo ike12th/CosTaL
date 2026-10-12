@@ -1,9 +1,11 @@
-"""公开 API：``knn()`` / ``reweight()`` / ``truncate()`` / ``build_graph()``（docs/04 §6）。
+"""Public API: ``knn()`` / ``reweight()`` / ``truncate()`` / ``build_graph()`` (docs/04 §6).
 
-不传任何可选参数 = 已发表的 CosTaL：按 cosine 选邻居（精确 kNN，k 不含自身），
-用未归一化的行范数算 Tanimoto 边权，再做模糊并集对称化（docs/04 §0.0）。
+No optional arguments = the published CosTaL: select neighbors by cosine (exact kNN, k excludes
+the row itself), weight edges by Tanimoto with the un-normalized row norms, then symmetrize by
+fuzzy union (docs/04 §0.0).
 
-kNN 是唯一贵的一步；边权与截断都在同一份 kNN 上做，几乎不花时间。
+kNN is the only expensive step; edge weights and truncation work on the same kNN and cost
+almost nothing.
 """
 
 from __future__ import annotations
@@ -20,18 +22,19 @@ __all__ = ["CostalWarning", "KnnGraph", "build_graph", "knn", "reweight", "trunc
 
 
 class CostalWarning(UserWarning):
-    """输入诊断给出的提醒：结果仍然正确，但某个参数的含义可能和你想的不一样。"""
+    """A note from the input diagnostics: results are still correct, but a parameter may not mean
+    what you think it means."""
 
 
 @dataclass(frozen=True)
 class KnnGraph:
-    """一份精确 kNN。
+    """An exact kNN.
 
     Attributes:
-        idx: ``(n, k)`` int32，原始行索引；每行按（cosine 降序, 索引升序）排好。
-        cos: ``(n, k)`` float64，f64 精排后的 cosine。
-        norms: ``(n,)`` float64，原始（未归一化）行范数，Tanimoto 边权用它。
-        meta: 参数、统计与输入诊断（docs/04 §6.6）。
+        idx: ``(n, k)`` int32 original row indices; each row sorted by (cosine desc, index asc).
+        cos: ``(n, k)`` float64 cosine after f64 rescoring.
+        norms: ``(n,)`` float64 raw (un-normalized) row norms, used by Tanimoto edge weights.
+        meta: parameters, statistics and input diagnostics (docs/04 §6.6).
     """
 
     idx: np.ndarray
@@ -53,49 +56,50 @@ _WEIGHTS = ("tanimoto", "cosine", "jaccard")
 
 def _check_choices(select: str, normalize: str, backend: str, compat: str | None) -> None:
     if compat not in (None, "paper"):
-        raise ValueError(f"compat 只能是 None 或 'paper'，收到 {compat!r}")
+        raise ValueError(f"compat must be None or 'paper', got {compat!r}")
     if select == "tanimoto":
-        raise NotImplementedError("select='tanimoto' 在阶段 A+ 加入（docs/04 §7）")
+        raise NotImplementedError("select='tanimoto' arrives in stage A+ (docs/04 §7)")
     if select != "cosine":
-        raise ValueError(f"select 只能是 'cosine' 或 'tanimoto'，收到 {select!r}")
+        raise ValueError(f"select must be 'cosine' or 'tanimoto', got {select!r}")
     if normalize == "none":
         raise NotImplementedError(
-            "normalize='none' 只对 select='tanimoto' 有意义，阶段 A+ 加入（docs/04 §0）"
+            "normalize='none' only matters with select='tanimoto'; it arrives in stage A+ (docs/04 §0)"
         )
     if normalize != "l2":
-        raise ValueError(f"normalize 只能是 'l2' 或 'none'，收到 {normalize!r}")
+        raise ValueError(f"normalize must be 'l2' or 'none', got {normalize!r}")
     if backend in ("approx", "hnsw"):
-        raise NotImplementedError("近似后端是阶段 E，且永不进默认路径（docs/03 §6）")
+        raise NotImplementedError("approximate backends are stage E and never enter the default path (docs/03 §6)")
     if backend == "sparse":
-        raise NotImplementedError("稀疏后端是阶段 S（docs/06 §5）")
+        raise NotImplementedError("the sparse backend is stage S (docs/06 §5)")
     if backend != "exact":
-        raise ValueError(f"backend 只能是 'exact'，收到 {backend!r}")
+        raise ValueError(f"backend must be 'exact', got {backend!r}")
 
 
 def _as_matrix(X: Any) -> np.ndarray:
     if hasattr(X, "tocsr") or hasattr(X, "toarray"):
         raise TypeError(
-            "稀疏输入要走稀疏后端（阶段 S，docs/06 §5），尚未实现；可以先 .toarray() 或降维"
+            "sparse input needs the sparse backend (stage S, docs/06 §5), not implemented yet; "
+            "use .toarray() or reduce dimensionality first"
         )
     X = np.asarray(X)
     if X.ndim != 2:
-        raise ValueError(f"X 必须是二维矩阵，收到 {X.ndim} 维")
+        raise ValueError(f"X must be a 2-D matrix, got {X.ndim} dimensions")
     if not (np.issubdtype(X.dtype, np.floating) or np.issubdtype(X.dtype, np.integer)):
-        raise TypeError(f"X 必须是实数矩阵，收到 dtype={X.dtype}")
+        raise TypeError(f"X must be a real-valued matrix, got dtype={X.dtype}")
     return np.ascontiguousarray(X, dtype=np.float32)
 
 
 def _diagnose(X: np.ndarray) -> dict[str, Any]:
-    """输入诊断：只记录、不改数据（docs/04 §6.6）。"""
+    """Input diagnostics: record only, never modify the data (docs/04 §6.6)."""
     norms = np.sqrt(np.einsum("ij,ij->i", X, X, dtype=np.float64))
     mean_norm = norms.mean()
     col_mean = X.mean(axis=0, dtype=np.float64)
     col_std = X.std(axis=0, dtype=np.float64)
     live = col_std > 0
     return {
-        # ≈ 0 ⇒ 输入已逐行单位化，Tanimoto ≡ c/(2−c)
+        # ≈ 0 ⇒ rows are already unit-normalized, so Tanimoto ≡ c/(2−c)
         "row_norm_cv": float(norms.std() / mean_norm) if mean_norm > 0 else 0.0,
-        # 所有非常数列的均值都远小于标准差 ⇒ 像 PCA / z-score / Pearson residuals
+        # Every non-constant column has mean ≪ std ⇒ looks like PCA / z-score / Pearson residuals
         "columns_centered": bool(
             live.any() and np.all(np.abs(col_mean[live]) <= 0.05 * col_std[live])
         ),
@@ -114,17 +118,19 @@ def knn(
     compat: str | None = None,
     n_threads: int | None = None,
 ) -> KnnGraph:
-    """精确 kNN（docs/04 §6.1）。
+    """Exact kNN (docs/04 §6.1).
 
-    按 cosine 选每行的 k 个邻居（不含自身）。全部 N² 个相似度都算过，
-    最终名次由 f64 固定顺序重算决定：换平台、换线程数，结果逐位相同（docs/06 §1）。
+    Selects each row's k neighbors by cosine (excluding the row itself). All N² similarities are
+    computed, and the final ranking comes from fixed-order f64 recomputation: results are
+    bit-identical across platforms and thread counts (docs/06 §1).
 
     Args:
-        X: ``(n, d)`` 稠密实数矩阵，内部转成 float32。
-        k: 每行的邻居数，``1 ≤ k ≤ n-1``。
-        compat: ``"paper"`` 显式锁定已发表 CosTaL 的语义（docs/04 §6.5）。
-            目前默认值就是论文语义，这个参数只是把意图写进元数据。
-        n_threads: 线程数；``None`` 用全部核。
+        X: ``(n, d)`` dense real-valued matrix, converted to float32 internally.
+        k: neighbors per row, ``1 ≤ k ≤ n-1``.
+        compat: ``"paper"`` explicitly pins the semantics of the published CosTaL (docs/04 §6.5).
+            The defaults currently are the paper's semantics; this only records the intent in
+            the metadata.
+        n_threads: number of threads; ``None`` uses all cores.
     """
     _check_choices(select, normalize, backend, compat)
     X = _as_matrix(X)
@@ -148,39 +154,43 @@ def _warn_about_magnitude(meta: dict[str, Any]) -> None:
         return
     if diag["row_norm_cv"] < 1e-4:
         warnings.warn(
-            "输入的行范数几乎恒定（已逐行单位化？）：Tanimoto 边权等价于 cosine 的单调变换 "
-            "c/(2−c)，不提供额外信息（docs/04 §0.1）",
+            "row norms are nearly constant (rows already unit-normalized?): Tanimoto edge weights "
+            "reduce to the monotone cosine transform c/(2−c) and add no information (docs/04 §0.1)",
             CostalWarning,
             stacklevel=3,
         )
     if diag["columns_centered"]:
         warnings.warn(
-            "各列已居中（PCA / z-score / Pearson residuals？）：行范数表示“离数据中心多远”"
-            "而不是丰度，Tanimoto 边权的含义随之改变，且可能为负（docs/04 §6.6）",
+            "columns are centered (PCA / z-score / Pearson residuals?): the row norm means "
+            "\"distance from the data center\" rather than abundance, so Tanimoto edge weights change "
+            "meaning and can be negative (docs/04 §6.6)",
             CostalWarning,
             stacklevel=3,
         )
 
 
 def reweight(knn: KnnGraph, weight: str = "tanimoto") -> np.ndarray:
-    """在同一份 kNN 上算边权，返回 ``(n, k)`` float64（docs/04 §6.1）。
+    """Edge weights on the same kNN, as ``(n, k)`` float64 (docs/04 §6.1).
 
-    - ``"tanimoto"``：``T = c·‖a‖‖b‖ / (‖a‖² + ‖b‖² − c·‖a‖‖b‖)``，用原始行范数——已发表的 CosTaL；
-    - ``"cosine"``：精排后的 cosine；
-    - ``"jaccard"``：共享邻居数 s 的 ``s / (2k − s)``，要比较邻居的邻居，O(N·k²)。
+    - ``"tanimoto"``: ``T = c·‖a‖‖b‖ / (‖a‖² + ‖b‖² − c·‖a‖‖b‖)`` with the raw row norms — the
+      published CosTaL;
+    - ``"cosine"``: the rescored cosine;
+    - ``"jaccard"``: ``s / (2k − s)`` for s shared neighbors; compares neighbors of neighbors,
+      O(N·k²).
 
-    重算边权只改边上的数，改不了图里有哪些边（docs/04 §6.3）。
+    Reweighting only changes the numbers on edges, never which edges exist (docs/04 §6.3).
     """
     if weight not in _WEIGHTS:
-        raise ValueError(f"weight 只能是 {_WEIGHTS}，收到 {weight!r}")
+        raise ValueError(f"weight must be one of {_WEIGHTS}, got {weight!r}")
     if weight == "tanimoto":
         _warn_about_magnitude(knn.meta)
     w = _ext._reweight(knn.idx, knn.cos, knn.norms, weight)
     n_negative = int(np.count_nonzero(w < 0))
     if n_negative:
         warnings.warn(
-            f"{n_negative} 条边的权重为负（带符号输入上 Tanimoto 的下界是 −1/3）。"
-            "论文模式原样保留；怎么处理待实验决定（docs/04 §6.6）",
+            f"{n_negative} edges have negative weights (Tanimoto's lower bound on signed input is "
+            "−1/3). Paper mode keeps them as is; how to handle them is to be decided by experiment "
+            "(docs/04 §6.6)",
             CostalWarning,
             stacklevel=2,
         )
@@ -188,10 +198,10 @@ def reweight(knn: KnnGraph, weight: str = "tanimoto") -> np.ndarray:
 
 
 def truncate(knn: KnnGraph, k: int) -> KnnGraph:
-    """取每行前 k 个邻居。每行已按（cosine 降序, 索引升序）全序排好，
-    所以结果**就是** k 更小时的精确 kNN，不是近似（docs/04 §6.1）。"""
+    """Keep the first k neighbors of each row. Rows are totally ordered by (cosine desc, index asc),
+    so the result **is** the exact kNN for the smaller k, not an approximation (docs/04 §6.1)."""
     if not 1 <= k <= knn.k:
-        raise ValueError(f"k 必须在 1..{knn.k} 之间，收到 {k}")
+        raise ValueError(f"k must be within 1..{knn.k}, got {k}")
     meta = {**knn.meta, "k": int(k), "truncated_from": knn.k}
     return KnnGraph(
         idx=np.ascontiguousarray(knn.idx[:, :k]),
@@ -213,19 +223,21 @@ def build_graph(
     compat: str | None = None,
     n_threads: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """一步到位：kNN → 边权 → 对称化，返回上三角边表 ``(rows, cols, weights)``。
+    """One call: kNN → edge weights → symmetrization, returning the upper-triangular edge list
+    ``(rows, cols, weights)``.
 
-    对称化是原版的模糊并集 ``S + Sᵀ − S∘Sᵀ``（**不是** ``(S + Sᵀ)/2``），去自环、
-    去掉恰为 0 的边；边按（行, 列）升序，与原版 scipy 管线逐位一致（docs/04 §0.0）。
+    Symmetrization is the original's fuzzy union ``S + Sᵀ − S∘Sᵀ`` (**not** ``(S + Sᵀ)/2``), with
+    self-loops and exactly-zero edges removed; edges are in ascending (row, col) order, matching
+    the original scipy pipeline bit for bit (docs/04 §0.0).
 
-    接 Leiden 的方式与原版相同::
+    Hand it to Leiden the same way as the original::
 
         rows, cols, w = costal_plus.build_graph(X)
         G = igraph.Graph(n=len(X), edges=list(zip(rows.tolist(), cols.tolist())),
                          edge_attrs={"weight": w.tolist()})
     """
     if symmetrize != "fuzzy_union":
-        raise ValueError(f"symmetrize 目前只有 'fuzzy_union'，收到 {symmetrize!r}")
+        raise ValueError(f"symmetrize currently supports only 'fuzzy_union', got {symmetrize!r}")
     g = knn(
         X,
         k,

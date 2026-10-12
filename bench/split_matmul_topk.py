@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""把精确 kNN 拆成 matmul 和 top-k 两半，核对 docs/01 §1.2：
-"matmul 优化完之后，朴素排序会成为新瓶颈"。
+"""Split exact kNN into its matmul and top-k halves to check docs/01 §1.2:
+"once matmul is optimized, naive sorting becomes the new bottleneck".
 
-两半都用 numpy：matmul 走 BLAS（多线程），top-k 走 argpartition（单线程、
-但已经是 C 实现的 introselect）。比值就是 Rust 版该往哪儿投火力的依据。
+Both halves use numpy: matmul goes through BLAS (multithreaded), top-k through argpartition
+(single-threaded, but already a C introselect). The ratio says where the Rust version should
+spend its effort.
 """
 from __future__ import annotations
 

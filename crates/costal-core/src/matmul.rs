@@ -1,20 +1,21 @@
-//! 瓦片 matmul：`out[m×n] = a[m×d] · b[n×d]ᵀ`，全部行主序、紧密排列。
+//! Tile matmul: `out[m×n] = a[m×d] · b[n×d]ᵀ`, all row-major and tightly packed.
 //!
-//! macOS 走 Accelerate（自动用 AMX），其它平台走纯 Rust 的 `gemm` crate，
-//! 不打包 OpenBLAS/MKL（docs/06 §3）。这里只产出 f32 粗选用的相似度；
-//! 最终名次由 f64 精排决定，所以换后端只影响速度、不影响输出（docs/06 §1）。
+//! macOS uses Accelerate (which uses AMX automatically); other platforms use the pure-Rust
+//! `gemm` crate, with no bundled OpenBLAS/MKL (docs/06 §3). This only produces similarities for
+//! f32 coarse selection; the final ranking comes from f64 rescoring, so switching backends
+//! changes speed, never output (docs/06 §1).
 
-/// matmul 后端。
+/// Matmul backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Matmul {
-    /// Apple Accelerate 的 `cblas_sgemm`，仅 macOS 可用。
+    /// Apple Accelerate's `cblas_sgemm`; macOS only.
     Accelerate,
-    /// 纯 Rust 的 `gemm` crate，全平台可用。
+    /// The pure-Rust `gemm` crate; available on every platform.
     Gemm,
 }
 
 impl Matmul {
-    /// 当前平台的默认后端。
+    /// Default backend for the current platform.
     pub fn platform_default() -> Self {
         if cfg!(target_os = "macos") {
             Matmul::Accelerate
@@ -23,7 +24,7 @@ impl Matmul {
         }
     }
 
-    /// 该后端在当前平台上是否可用。
+    /// Whether this backend is available on the current platform.
     pub fn is_available(self) -> bool {
         match self {
             Matmul::Accelerate => cfg!(target_os = "macos"),
@@ -31,7 +32,7 @@ impl Matmul {
         }
     }
 
-    /// 按名字解析（"accelerate" / "gemm"），供绑定层使用。
+    /// Parse by name ("accelerate" / "gemm"), for the bindings.
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "accelerate" => Some(Matmul::Accelerate),
@@ -48,9 +49,10 @@ impl Matmul {
     }
 }
 
-/// `out[..m*n] = a · bᵀ`。`a` 是 m×d，`b` 是 n×d，`out` 的行跨度为 n。
+/// `out[..m*n] = a · bᵀ`, where `a` is m×d, `b` is n×d, and `out` has row stride n.
 ///
-/// 调用方保证后端可用（见 [`Matmul::is_available`]）且切片长度足够。
+/// The caller guarantees the backend is available (see [`Matmul::is_available`]) and the
+/// slices are long enough.
 pub fn tile_nt(
     backend: Matmul,
     a: &[f32],
@@ -70,12 +72,12 @@ pub fn tile_nt(
     }
     match backend {
         #[cfg(target_os = "macos")]
-        // SAFETY: 上面的 assert 保证了三个缓冲区的长度。
+        // SAFETY: the assert above guarantees the lengths of all three buffers.
         Matmul::Accelerate => unsafe { accelerate::sgemm_nt(a, m, b, n, d, out) },
         #[cfg(not(target_os = "macos"))]
-        Matmul::Accelerate => panic!("Accelerate 只在 macOS 上可用"),
-        // SAFETY: 同上；步长按行主序给出。gemm 的约定是 dst = alpha·dst + beta·lhs·rhs，
-        // 所以 alpha=0、beta=1、read_dst=false 即 dst = lhs·rhs。
+        Matmul::Accelerate => panic!("Accelerate is only available on macOS"),
+        // SAFETY: as above; strides are given for row-major layout. gemm's convention is
+        // dst = alpha·dst + beta·lhs·rhs, so alpha=0, beta=1, read_dst=false gives dst = lhs·rhs.
         Matmul::Gemm => unsafe {
             gemm::gemm(
                 m,
@@ -88,7 +90,7 @@ pub fn tile_nt(
                 a.as_ptr(),
                 1,
                 d as isize,
-                // rhs = bᵀ（d×n）：元素 (p, j) 在 b[j*d + p]，列步长 d、行步长 1
+                // rhs = bᵀ (d×n): element (p, j) is b[j*d + p], column stride d, row stride 1
                 b.as_ptr(),
                 d as isize,
                 1,
@@ -132,7 +134,7 @@ mod accelerate {
         );
     }
 
-    /// SAFETY: 调用方保证 `a`、`b`、`out` 分别至少有 m·d、n·d、m·n 个元素。
+    /// SAFETY: the caller guarantees `a`, `b`, `out` hold at least m·d, n·d, m·n elements.
     pub unsafe fn sgemm_nt(a: &[f32], m: usize, b: &[f32], n: usize, d: usize, out: &mut [f32]) {
         cblas_sgemm(
             ROW_MAJOR,

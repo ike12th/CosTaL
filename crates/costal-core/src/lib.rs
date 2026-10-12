@@ -1,12 +1,12 @@
 //! CosTaL+ core.
 //!
-//! 纯 Rust、不依赖 Python。真正的算法（kNN 建图 / Tanimoto 边权 / 社区发现）
-//! 都落在这里；`costal-py` 只做绑定，不放逻辑。
+//! Pure Rust with no Python dependency. The actual algorithms (kNN graph / Tanimoto edge
+//! weights / community detection) live here; `costal-py` only does bindings, no logic.
 //!
-//! - [`knn`]：精确 kNN（融合分块粗选 + f64 精排，docs/03 §2、docs/06 §1）
-//! - [`weight`]：边权（tanimoto / cosine / jaccard）
-//! - [`graph`]：原版的模糊并集对称化
-//! - [`matmul`]、[`cache`]：瓦片 matmul 后端与缓存探测（docs/06 §2–§3）
+//! - [`knn`]: exact kNN (fused blocked coarse selection + f64 rescoring, docs/03 §2, docs/06 §1)
+//! - [`weight`]: edge weights (tanimoto / cosine / jaccard)
+//! - [`graph`]: the original's fuzzy-union symmetrization
+//! - [`matmul`], [`cache`]: tile matmul backends and cache detection (docs/06 §2–§3)
 
 pub mod cache;
 pub mod graph;
@@ -14,26 +14,26 @@ pub mod knn;
 pub mod matmul;
 pub mod weight;
 
-/// 编译进二进制的版本号，用来确认 Python 侧加载的确实是这次构建的产物。
+/// Version compiled into the binary, to confirm Python loaded the artifact of this build.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// 骨架自检：返回一句带版本号的问候。
+/// Skeleton self-check: returns a greeting that includes the version.
 pub fn hello() -> String {
     format!("CosTaL+ core v{VERSION} is alive")
 }
 
-/// 按行计算 L2 范数。
+/// Row-wise L2 norms.
 ///
-/// 存在的意义不是这个函数本身，而是它证明了 numpy 数组能零拷贝进 Rust、
-/// 结果能还给 Python。`‖·‖²` 后面会被 Tanimoto 边权直接复用
-/// （见 docs/01 §1.1：a·b 与 ‖·‖² 复用是不二次遍历边表的前提）。
+/// The point is not the function itself but proving that numpy arrays reach Rust without a copy
+/// and results go back to Python. `‖·‖²` is later reused directly by Tanimoto edge weights
+/// (see docs/01 §1.1: reusing a·b and ‖·‖² is what avoids a second pass over the edge list).
 ///
-/// `x` 是行主序的 `n_rows × n_cols` 稠密矩阵。
+/// `x` is a row-major dense `n_rows × n_cols` matrix.
 pub fn row_l2_norms(x: &[f32], n_rows: usize, n_cols: usize) -> Vec<f32> {
     assert_eq!(
         x.len(),
         n_rows * n_cols,
-        "row_l2_norms: 数据长度 {} 与形状 {}x{} 不符",
+        "row_l2_norms: data length {} does not match shape {}x{}",
         x.len(),
         n_rows,
         n_cols

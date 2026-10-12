@@ -1,4 +1,4 @@
-"""骨架自检：扩展模块能加载、numpy 能来回穿、版本号对得上。"""
+"""Skeleton self-check: the extension loads, numpy round-trips, and the versions match."""
 
 import numpy as np
 import pytest

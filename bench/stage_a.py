@@ -1,16 +1,16 @@
-"""阶段 A 验收（docs/03 §6）：每一项都同时给正确性和速度。
+"""Stage A acceptance (docs/03 §6): every item reports both correctness and speed.
 
-用法（必须用原生 arm64 解释器，Rosetta 下的数字不作数）：
-    python bench/stage_a.py sweep     # 瓦片尺寸 × matmul 后端（N=50k）
-    python bench/stage_a.py speed     # N=10k/50k/100k/265k 计时；N≤20k 与暴力解逐位比对
-    python bench/stage_a.py parity    # 去重数据 N=50k 与原版 bc() 路径对照：邻居集、边权、图、Leiden 划分
-    python bench/stage_a.py full      # 去重后全部 161,443 个细胞端到端 + Leiden，对门控标签报 ARI/NMI
-    python bench/stage_a.py parity-raw / full-raw   # 同上，但用未去重的原始文件（265,627 行）
-    python bench/stage_a.py dup-effect   # 去重前后各跑 5 个 Leiden seed，看重复细胞对 ARI/NMI 的影响
+Usage (use a native arm64 interpreter on Apple Silicon; numbers under Rosetta don't count):
+    python bench/stage_a.py sweep     # tile size x matmul backend (N=50k)
+    python bench/stage_a.py speed     # timings at N=10k/50k/100k/265k; bitwise check vs brute force for N<=20k
+    python bench/stage_a.py parity    # deduplicated N=50k vs the original bc() path: neighbors, weights, graph, Leiden
+    python bench/stage_a.py full      # all 161,443 deduplicated cells end to end + Leiden; ARI/NMI vs gating labels
+    python bench/stage_a.py parity-raw / full-raw   # same, on the raw (not deduplicated) file (265,627 rows)
+    python bench/stage_a.py dup-effect   # 5 Leiden seeds with and without deduplication: effect of duplicate cells
 
-sweep / speed 用未去重的原始文件，规模与 docs/02 对齐。
+sweep / speed use the raw file, so the sizes line up with docs/02.
 
-结果按子命令合并写进 bench/out/stage_a.json。
+Results are merged per subcommand into bench/out/stage_a.json.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-# CI 上写到别的文件，免得和仓库里本机（M1）的数字混在一起
+# On CI, write to a separate file so results don't mix with the local (M1) numbers in the repo
 OUT = Path(os.environ.get("STAGE_A_OUT", HERE / "out" / "stage_a.json")).resolve()
 REFERENCE = HERE / "reference" / "CosTaL-0.0.2.4"
 K = 10
@@ -43,12 +43,14 @@ NON_MARKER = {
 
 
 def load_levine(n: int | None, seed: int = SEED, dedup: bool = True):
-    """Levine_32dim：arcsinh(x/5) 后的 32 个 marker（float64）与人工门控标签（未门控为 -1）。
+    """Levine_32dim: the 32 markers after arcsinh(x/5) (float64) and the manual gating labels
+    (-1 for ungated cells).
 
-    上游文件把 14 个门控群体的 FCS 和 NotDebrisSinglets（父门，含全部细胞）直接拼接，
-    于是 104,184 个已门控细胞各出现两次：一份带标签、一份不带，marker 值逐位相同
-    （docs/02 附记）。``dedup=True`` 时每个 (file_number, event_number, individual)
-    只留一行、标签取带标签那份，得到 161,443 个唯一细胞。"""
+    The upstream file concatenates the FCS files of the 14 gated populations with
+    NotDebrisSinglets (the parent gate, which holds every cell), so each of the 104,184 gated
+    cells appears twice: once with a label and once without, with bit-identical marker values
+    (docs/02 Addendum). With ``dedup=True`` each (file_number, event_number, individual) keeps
+    one row, taking the label from the labeled copy, which gives 161,443 unique cells."""
     import fcsparser
 
     import warnings
@@ -62,7 +64,7 @@ def load_levine(n: int | None, seed: int = SEED, dedup: bool = True):
     labels = df["label"].to_numpy()
     if dedup:
         key = df[["file_number", "event_number", "individual"]].to_numpy()
-        order = np.argsort(np.isnan(labels), kind="stable")  # 带标签的排前面，去重时留它
+        order = np.argsort(np.isnan(labels), kind="stable")  # labeled rows first, so deduplication keeps them
         _, first = np.unique(key[order], axis=0, return_index=True)
         keep = np.sort(order[first])
         x, labels = x[keep], labels[keep]
@@ -74,7 +76,7 @@ def load_levine(n: int | None, seed: int = SEED, dedup: bool = True):
 
 
 def timed(fn, repeat: int = 1):
-    """返回 (最好一次的秒数, 最后一次的结果)。"""
+    """Return (best time in seconds, result of the last run)."""
     best, out = float("inf"), None
     for _ in range(repeat):
         t0 = time.perf_counter()
@@ -115,7 +117,7 @@ def save(section: str, payload: dict) -> None:
 def cmd_sweep() -> None:
     x, _ = load_levine(50_000, dedup=False)
     x32 = np.ascontiguousarray(x, dtype=np.float32)
-    ext._knn_exact(x32[:5000], K)  # 预热线程池
+    ext._knn_exact(x32[:5000], K)  # warm up the thread pool
     backends = ["gemm"] + (["accelerate"] if cp.default_matmul() == "accelerate" else [])
     rows = []
     for backend, rb, cb in itertools.product(backends, [16, 32, 64, 128, 256], [256, 1024, 4096]):
@@ -134,7 +136,7 @@ def cmd_sweep() -> None:
 
 # ------------------------------------------------------------------ speed
 
-# docs/02 的原版数字（同一台机器，测试时 swap 已满，绝对值偏慢）
+# The original's numbers from docs/02 (same machine; swap was full during that run, so absolute values are slow)
 DOCS02 = {
     10_000: {"blas_blocked": 2.15, "phenograph_bruteforce": 22.62},
     50_000: {"blas_blocked": 40.67, "phenograph_bruteforce": 74.97},
@@ -147,7 +149,7 @@ def cmd_speed() -> None:
     full, _ = load_levine(None, dedup=False)
     rng = np.random.default_rng(SEED)
     results = []
-    ext._knn_exact(np.ascontiguousarray(full[:5000], dtype=np.float32), K)  # 预热
+    ext._knn_exact(np.ascontiguousarray(full[:5000], dtype=np.float32), K)  # warm up
     for n in [10_000, 20_000, 50_000, 100_000, len(full)]:
         keep = np.sort(rng.choice(len(full), n, replace=False)) if n < len(full) else slice(None)
         x32 = np.ascontiguousarray(full[keep], dtype=np.float32)
@@ -178,17 +180,18 @@ def cmd_speed() -> None:
 
 
 def original_clustering():
-    """原版 CosTaL 的 clustering 模块（bench/reference 里的 0.0.2.4 源码）。"""
+    """The original CosTaL clustering module (the 0.0.2.4 source in bench/reference)."""
     import importlib  # noqa: PLC0415
 
     if str(REFERENCE) not in sys.path:
         sys.path.insert(0, str(REFERENCE))
-    # CosTaL/__init__.py 把同名函数 clustering 导出到包上，会遮住模块，所以按模块名导入
+    # CosTaL/__init__.py exports a function named clustering that shadows the module, so import it by module name
     return importlib.import_module("CosTaL.clustering")
 
 
 def original_graph(x: np.ndarray, k: int):
-    """原版 bc() 的建图部分，原样调用原版函数（CosTaL 在非 Linux 上实际走的路径）。"""
+    """The graph-building part of the original bc(), calling the original functions as is (the path
+    CosTaL actually takes on non-Linux platforms)."""
     clustering = original_clustering()
     from phenograph import bruteforce_nn  # noqa: PLC0415
 
@@ -206,7 +209,7 @@ def original_graph(x: np.ndarray, k: int):
 
 
 def leiden(graph, seed: int = SEED):
-    """原版的 Leiden 设置：RBConfiguration、resolution 0.8、n_iterations 10（docs/04 §0.0 第 5 条）。"""
+    """The original Leiden settings: RBConfiguration, resolution 0.8, n_iterations 10 (docs/04 §0.0 item 5)."""
     import leidenalg as la
 
     t0 = time.perf_counter()
@@ -240,13 +243,13 @@ def cmd_parity(n: int = 50_000, dedup: bool = True) -> None:
     from sklearn.metrics import adjusted_rand_score
 
     x, labels = load_levine(n, dedup=dedup)
-    print(f"  N={n} dedup={dedup}: 原版 bc() 建图（phenograph 暴力 kNN）…", flush=True)
+    print(f"  N={n} dedup={dedup}: original bc() graph (phenograph brute-force kNN)...", flush=True)
     o_idx, o_w, o_graph, o_time = original_graph(x, K)
     print(f"    {o_time}", flush=True)
     g, w, graph, t_ours = ours_graph(x, K)
-    print(f"  CosTaL+ 建图 {t_ours['knn_weights_graph_s']:.3f} s", flush=True)
+    print(f"  CosTaL+ graph {t_ours['knn_weights_graph_s']:.3f} s", flush=True)
 
-    # 邻居集：逐行比较；不一致的行看是不是近似并列
+    # Neighbor sets: compare row by row; for rows that differ, check whether it is a near-tie
     same_rows = np.array([set(a) == set(b) for a, b in zip(o_idx, g.idx)])
     diff_rows = np.flatnonzero(~same_rows)
     x64 = x / np.linalg.norm(x, axis=1, keepdims=True)
@@ -257,20 +260,21 @@ def cmd_parity(n: int = 50_000, dedup: bool = True) -> None:
         c_o = x64[only_o] @ x64[i]
         c_c = x64[only_c] @ x64[i]
         gaps.append(float(np.max(np.abs(np.sort(c_o) - np.sort(c_c)))))
-    # 边权：对两边都有的边比较 Tanimoto（原版用 float64 原始数据，我们用 float32 转换后的数据）
+    # Edge weights: compare Tanimoto on edges both sides have (the original uses float64 raw data,
+    # we use the float32-converted data)
     common = same_rows
     o_sorted = np.take_along_axis(o_w, np.argsort(o_idx, axis=1), axis=1)[common]
     c_sorted = np.take_along_axis(w, np.argsort(g.idx, axis=1), axis=1)[common]
     w_rel = float(np.max(np.abs(o_sorted - c_sorted) / np.abs(o_sorted)))
 
-    # 原版 bc() 用 idx[:, 1:] 去自身：有精确重复细胞时，重复者可能排在自身前面，
-    # 于是自身留在邻居表里、一个真邻居被丢掉
+    # The original bc() drops self with idx[:, 1:]: with exact duplicate cells the duplicate can sort
+    # ahead of the cell itself, which then stays in its own neighbor list while a real neighbor is lost
     self_in = np.array([i in o_idx[i] for i in range(n)])
     _, inv, counts = np.unique(x, axis=0, return_inverse=True, return_counts=True)
     in_dup_group = counts[inv.ravel()] > 1
 
-    # Leiden 自身就有随机性：多跑几个 seed，拿"同一张图换 seed"的一致度当噪声基线
-    print(f"  Leiden × {len(SEEDS)} 个 seed × 两张图…", flush=True)
+    # Leiden is itself random: run several seeds and use "same graph, different seed" agreement as the noise baseline
+    print(f"  Leiden x {len(SEEDS)} seeds x two graphs...", flush=True)
     runs_o = [leiden(o_graph, s) for s in SEEDS]
     runs_c = [leiden(graph, s) for s in SEEDS]
     m_o, m_c = [m for m, _ in runs_o], [m for m, _ in runs_c]
@@ -311,7 +315,7 @@ def cmd_parity(n: int = 50_000, dedup: bool = True) -> None:
 def cmd_full(dedup: bool = True) -> None:
     x, labels = load_levine(None, dedup=dedup)
     g, w, graph, t_ours = ours_graph(x, K)
-    print(f"  建图 {t_ours['knn_weights_graph_s']:.2f} s  {t_ours['stats']}", flush=True)
+    print(f"  graph {t_ours['knn_weights_graph_s']:.2f} s  {t_ours['stats']}", flush=True)
     m, t_l = leiden(graph)
     payload = {"n": len(x), "k": K, "dedup": dedup, **t_ours, "leiden_s": t_l, "edges": graph.ecount(),
                **label_scores(labels, m)}
@@ -320,7 +324,8 @@ def cmd_full(dedup: bool = True) -> None:
 
 
 def cmd_dup_effect() -> None:
-    """重复细胞对精度评估的影响：去重前后各建一次图，Leiden 跑多个 seed，比对门控标签。"""
+    """Effect of duplicate cells on accuracy: build the graph with and without deduplication, run
+    Leiden with several seeds, and score against the gating labels."""
     payload = {"k": K, "seeds": list(SEEDS)}
     for name, dedup in (("dedup", True), ("raw", False)):
         x, labels = load_levine(None, dedup=dedup)
