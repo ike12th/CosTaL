@@ -26,7 +26,8 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "out" / "stage_a.json"
+# CI 上写到别的文件，免得和仓库里本机（M1）的数字混在一起
+OUT = Path(os.environ.get("STAGE_A_OUT", HERE / "out" / "stage_a.json"))
 REFERENCE = HERE / "reference" / "CosTaL-0.0.2.4"
 K = 10
 SEED = 0
@@ -176,13 +177,19 @@ def cmd_speed() -> None:
 # ------------------------------------------------------------------ parity
 
 
-def original_graph(x: np.ndarray, k: int):
-    """原版 bc() 的建图部分，原样调用原版函数（CosTaL 在非 Linux 上实际走的路径）。"""
-    sys.path.insert(0, str(REFERENCE))
+def original_clustering():
+    """原版 CosTaL 的 clustering 模块（bench/reference 里的 0.0.2.4 源码）。"""
     import importlib  # noqa: PLC0415
 
+    if str(REFERENCE) not in sys.path:
+        sys.path.insert(0, str(REFERENCE))
     # CosTaL/__init__.py 把同名函数 clustering 导出到包上，会遮住模块，所以按模块名导入
-    clustering = importlib.import_module("CosTaL.clustering")
+    return importlib.import_module("CosTaL.clustering")
+
+
+def original_graph(x: np.ndarray, k: int):
+    """原版 bc() 的建图部分，原样调用原版函数（CosTaL 在非 Linux 上实际走的路径）。"""
+    clustering = original_clustering()
     from phenograph import bruteforce_nn  # noqa: PLC0415
 
     t0 = time.perf_counter()

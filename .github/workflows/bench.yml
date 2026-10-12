@@ -1,0 +1,51 @@
+name: bench
+
+# 手动触发：在 GitHub 的 x86-64 Linux 机器上跑阶段 A 基准，拿纯 Rust gemm 后端在 x86 上的数字
+# （docs/06 §3）。共享机器的计时有噪声，只看量级和 x86 上的相对结论；M1 的数字仍在本机测。
+# 结果写到 bench/out/stage_a.linux-x86_64.json 并作为 artifact 上传，不与仓库里本机的数字混在一起。
+
+on:
+  workflow_dispatch:
+    inputs:
+      commands:
+        description: "bench/stage_a.py 的子命令，空格分隔（sweep speed parity full dup-effect ...）"
+        type: string
+        default: "sweep speed parity"
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      STAGE_A_OUT: bench/out/stage_a.linux-x86_64.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: bench/data
+          key: levine-32dim-v1
+      # 原版 CosTaL 的 clustering.py 在 import 时要 numba / umap / phenograph
+      - run: pip install --upgrade pip maturin numpy scipy pandas scikit-learn igraph leidenalg fcsparser phenograph numba umap-learn
+      - run: pip install .
+      - run: python bench/fetch_reference.py
+      - run: lscpu | head -20 && free -g
+      - name: run benchmarks
+        env:
+          COMMANDS: ${{ inputs.commands }}
+        run: |
+          for c in $COMMANDS; do
+            echo "::group::stage_a.py $c"
+            python bench/stage_a.py "$c"
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage_a-linux-x86_64
+          path: bench/out/stage_a.linux-x86_64.json
+          retention-days: 30

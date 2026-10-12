@@ -1,0 +1,49 @@
+name: golden
+
+# 手动触发：在 x86-64 Linux 上跑原版 CosTaL 自带的 p_knng_Linux，拿 L3 黄金输出并与 CosTaL+
+# 对照（docs/04 §4）。本机是 macOS arm64，跑不了这个二进制；GitHub 的 ubuntu runner 正好可以。
+# 回答两个待核问题：.clu 的索引起始（-writeZidx 与原版的 columns − 1），以及重复细胞上怎么排除自身。
+
+on:
+  workflow_dispatch:
+    inputs:
+      sizes:
+        description: "Levine 子样本大小，空格分隔；每个都跑去重与未去重两份"
+        type: string
+        default: "20000 50000"
+
+jobs:
+  pknng:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        with:
+          path: bench/data
+          key: levine-32dim-v1
+      - run: pip install --upgrade pip maturin numpy scipy pandas scikit-learn igraph leidenalg fcsparser phenograph numba umap-learn
+      - run: pip install .
+      - run: python bench/fetch_reference.py
+      - name: p_knng 的运行环境
+        run: |
+          uname -m
+          file bench/reference/CosTaL-0.0.2.4/CosTaL/p_knng_Linux
+          ldd bench/reference/CosTaL-0.0.2.4/CosTaL/p_knng_Linux
+      - name: run p_knng and compare
+        env:
+          SIZES: ${{ inputs.sizes }}
+        run: python bench/golden_pknng.py $SIZES
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-pknng
+          path: |
+            bench/out/golden_pknng.json
+            bench/out/golden/*.clu
+          retention-days: 30

@@ -73,6 +73,24 @@ scripts/build-wheel.sh x86_64-unknown-linux-gnu --zig   # 交叉
 > `rustup target add x86_64-apple-darwin`（`rust-toolchain.toml` 里已列上）。
 > 但**性能测试必须用原生 arm64 解释器**，Rosetta 下的数字不作数。
 
+## 云端测试（GitHub Actions）
+
+仓库是私有的，Actions 分钟有额度（Linux 1 倍、Windows 2 倍、macOS 10 倍），所以分了档：
+
+| 工作流 | 什么时候跑 | 做什么 |
+|---|---|---|
+| `CI` | 每次推送（只改文档 / 报告时不跑） | Linux 上 fmt + clippy + `cargo test` + pytest（Python 3.9 / 3.13） |
+| `CI`（勾选 all_os） | 手动触发、打 `v*` 标签 | 同上，加 macOS 与 Windows |
+| `bench` | 手动触发 | x86-64 Linux 上跑 `bench/stage_a.py`（纯 Rust gemm 后端的 x86 数字） |
+| `golden` | 手动触发 | x86-64 Linux 上跑原版 `p_knng_Linux`，拿 L3 黄金输出并与 CosTaL+ 对照 |
+| `wheels` | 打 `v*` 标签 | 8 个平台的 wheel |
+
+```bash
+gh workflow run golden -f sizes="20000 50000"
+```
+
+M1 上的性能数字仍在本机测（`bench/out/stage_a.json`）。
+
 ## 复现 profile
 
 ```bash

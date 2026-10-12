@@ -1,10 +1,22 @@
 name: CI
 
+# 私有仓库的 Actions 分钟有额度：Linux 按 1 倍、Windows 按 2 倍、macOS 按 10 倍计。
+# 所以日常推送只跑 Linux；macOS / Windows 在手动触发（勾选 all_os）和打 v* 标签时跑。
+# macOS arm64 本机开发时也会跑（scripts/dev.sh）。只改文档、报告、调研笔记的提交不触发。
+
 on:
   push:
     branches: [main]
+    tags: ["v*"]
+    paths-ignore: ["docs/**", "reports/**", "research_notes/**", "**/*.md"]
   pull_request:
+    paths-ignore: ["docs/**", "reports/**", "research_notes/**", "**/*.md"]
   workflow_dispatch:
+    inputs:
+      all_os:
+        description: "同时跑 macOS 与 Windows（分钟按 10 倍 / 2 倍计）"
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -13,15 +25,29 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  ALL_OS: '["ubuntu-latest", "macos-14", "windows-latest"]'
+  LINUX_ONLY: '["ubuntu-latest"]'
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.pick.outputs.os }}
+    steps:
+      - id: pick
+        env:
+          WANT_ALL: ${{ (github.event_name == 'workflow_dispatch' && inputs.all_os) || startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [ "$WANT_ALL" = "true" ]; then echo "os=$ALL_OS" >> "$GITHUB_OUTPUT"; else echo "os=$LINUX_ONLY" >> "$GITHUB_OUTPUT"; fi
+
   rust:
     name: rust / ${{ matrix.os }}
+    needs: plan
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14, windows-latest]
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -34,11 +60,12 @@ jobs:
 
   python:
     name: python ${{ matrix.python }} / ${{ matrix.os }}
+    needs: plan
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-14, windows-latest]
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
         python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4
