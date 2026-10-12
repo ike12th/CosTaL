@@ -12,6 +12,7 @@ bench/out/*
 !bench/out/profile.json
 !bench/out/split_matmul_topk.log
 !bench/out/tanimoto_semantics.log
+!bench/out/stage_a.json
 .venv-arm64/
 bench/data/
 .DS_Store

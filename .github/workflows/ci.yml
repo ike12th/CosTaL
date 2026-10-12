@@ -47,7 +47,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: pip install --upgrade pip maturin pytest numpy
+      # scipy：tests/test_knn.py 用原版的 scipy 对称化代码做逐位对照
+      - run: pip install --upgrade pip maturin pytest numpy scipy
       - run: pip install -e . --no-build-isolation
       - run: pytest -q
       - run: costal-plus info

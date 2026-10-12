@@ -3,7 +3,16 @@
 //! 纯 Rust、不依赖 Python。真正的算法（kNN 建图 / Tanimoto 边权 / 社区发现）
 //! 都落在这里；`costal-py` 只做绑定，不放逻辑。
 //!
-//! 现阶段只有骨架级内容，用来打通 `cargo test` 与 `pip install -e .` 的链路。
+//! - [`knn`]：精确 kNN（融合分块粗选 + f64 精排，docs/03 §2、docs/06 §1）
+//! - [`weight`]：边权（tanimoto / cosine / jaccard）
+//! - [`graph`]：原版的模糊并集对称化
+//! - [`matmul`]、[`cache`]：瓦片 matmul 后端与缓存探测（docs/06 §2–§3）
+
+pub mod cache;
+pub mod graph;
+pub mod knn;
+pub mod matmul;
+pub mod weight;
 
 /// 编译进二进制的版本号，用来确认 Python 侧加载的确实是这次构建的产物。
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

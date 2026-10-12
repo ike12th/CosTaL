@@ -17,8 +17,28 @@ https://doi.org/10.1093/bib/bbad157
 
 ## 现状
 
-骨架阶段（P0 已完成）。算法尚未实现，但构建链路已经通：
-Rust workspace → PyO3 绑定 → maturin wheel → `pip install` → `import costal_plus`。
+**阶段 A 已完成（v0.1.0）**：精确 kNN + 边权 + 对称化进了 Rust，Leiden 仍用 `leidenalg`
+（docs/03 §5）。不传可选参数 = 已发表的 CosTaL。
+
+```python
+import costal_plus, igraph, leidenalg as la
+
+rows, cols, w = costal_plus.build_graph(X, k=10)        # 精确 cosine kNN → Tanimoto → 模糊并集
+G = igraph.Graph(n=len(X), edges=list(zip(rows.tolist(), cols.tolist())),
+                 edge_attrs={"weight": w.tolist()})
+part = la.find_partition(G, la.RBConfigurationVertexPartition, weights="weight",
+                         n_iterations=10, resolution_parameter=0.8)
+
+# 贵的一步只做一次，边权和 k 随便换（docs/04 §6.1）
+g = costal_plus.knn(X, k=30)
+w_tani = costal_plus.reweight(g, "tanimoto")
+w_jacc = costal_plus.reweight(costal_plus.truncate(g, 10), "jaccard")
+```
+
+- **精确**：全部 N² 个相似度都算过；最终名次由 f64 固定顺序重算决定，换平台、线程数、
+  matmul 后端，结果逐位相同（docs/06 §1）。
+- **速度**：Levine_32dim 全部 265,627 行，精确 kNN 6.5 s（原版路线的精确 kNN 在同一台机器上
+  是 1098.7 s，docs/02）。数字与对照见 `bench/stage_a.py` 和 `bench/out/stage_a.json`。
 
 - 技术方案：[docs/01_技术规划.md](docs/01_技术规划.md)
 - 原版 profile 的真实数字：[docs/02_原版profile报告.md](docs/02_原版profile报告.md)
