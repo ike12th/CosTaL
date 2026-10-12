@@ -22,6 +22,10 @@ Rust workspace → PyO3 绑定 → maturin wheel → `pip install` → `import c
 
 - 技术方案：[docs/01_技术规划.md](docs/01_技术规划.md)
 - 原版 profile 的真实数字：[docs/02_原版profile报告.md](docs/02_原版profile报告.md)
+- 架构与实施计划：[docs/03_架构与计划.md](docs/03_架构与计划.md)
+- 选择度量与剪枝策略：[docs/04_选择度量与剪枝策略.md](docs/04_选择度量与剪枝策略.md)
+- 分辨率极限与停止准则（方法学线）：[docs/05_分辨率极限与停止准则.md](docs/05_分辨率极限与停止准则.md)
+- 跨平台、确定性与后端选择：[docs/06_跨平台与确定性.md](docs/06_跨平台与确定性.md)
 
 ## 开发环境
 

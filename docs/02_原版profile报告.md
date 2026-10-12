@@ -44,6 +44,22 @@ docs/01 §1.1 留了一条前置动作：**先 profile 现有 Python 版，用�
 `p_knng` 带剪枝上界，应当比 `blas_blocked` 快，但仍是精确解、量级同属
 "精确"一档；不会掉到 `hnsw` 那一档。
 
+> **附记（2026-10-12）：`p_knng` 的源码与行为**
+>
+> - **源码可读。** L2Knng 作者 Anastasiu 的 [snnlib](https://github.com/davidanastasiu/snnlib)
+>   （MIT）里有 C++ 实现：`snnlib/CosKnnIndex.h`，约 1100 行，含精确/近似建图与剪枝。
+>   但它是 2023 年的重写版，整个仓库只有 2 个 commit（最后一个是 2024-04 的 "partial"），
+>   README 自称进行中，测试只覆盖近似路径、没有 recall 检查。`p_knng_Linux`
+>   是更早的 C 版（符号前缀 `da_csr_*`，GCC 4.8.5 / RHEL 7 编译，文件日期 2021-01）。
+>   **两者不保证逐位一致。** 更早那份 C 源码在 GitHub 上找不到。
+> - **二进制没 strip。** 函数名都在。`strings` 就能读出模式 `pl2knn` / `pl2knn-a` / `pkij`
+>   与参数 `-readZidx -writeZidx -nthreads -permcols`。原版用的是 `pl2knn`（精确）。
+> - **不反编译，要运行。** 我们缺的是"它实际输出什么"（docs/04 §4 的 L3 黄金输出，
+>   以及那里记的索引起始问题），反编译给不了。它是 x86-64 Linux 程序：在 NAS
+>   （Pentium Gold 8505，x86-64，需要 `libgomp`）或 CI 的 ubuntu runner 上跑。
+> - **L2Knng 为稀疏数据设计。** 剪枝建立在倒排索引上；Levine_32dim 实测 100% 稠密，
+>   所以它挪到稀疏后端（docs/06 §5）。
+
 > **环境有噪声**：这台 M1 Pro（16 GB）测试期间 swap 已用满 14.6 GB。
 > 绝对秒数会偏慢，**阶段之间的比例**是本报告的结论依据，不是绝对值。
 
