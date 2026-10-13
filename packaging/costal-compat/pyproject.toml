@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "CosTaL"
+version = "0.1.0"
+description = "CosTaL now runs on CosTaL+: this package keeps the CosTaL 0.0.2 API working on top of costal-plus"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Yijia Li" }]
+requires-python = ">=3.9"
+dependencies = ["costal-plus[leiden]>=1.0"]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+
+[project.optional-dependencies]
+scrnaseq = ["costal-plus[scrnaseq]>=1.0"]
+scores = ["pandas", "scikit-learn", "scipy"]
+
+[project.urls]
+"CosTaL+" = "https://github.com/ike12th/costal-plus"
+Paper = "https://doi.org/10.1093/bib/bbad157"
+
+[tool.setuptools]
+packages = ["CosTaL"]
