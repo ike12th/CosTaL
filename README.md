@@ -30,8 +30,8 @@ the paper, or igraph's native implementation with `leiden="fast"`. `preprocess()
   within Leiden's noise (docs/04 §4).
 - **Is the "+" worth it?** Tanimoto *selection*, Tanimoto vs cosine weights, and the row norm were
   measured on six datasets (docs/04 §5.1). On Levine_13 (13 markers; the row norm explains 89% of the
-  label variance) every setup using magnitude beats pure cosine by ~0.03 ARI, Tanimoto selection best
-  on rare populations; on the other five it is a tie. The `normalize_total` scRNA-seq preset is never
+  label variance) the published Tanimoto weights beat pure cosine (+0.02 ARI, 8 of 10 seeds) and
+  Tanimoto selection recovers rare populations better; on the other five it is a tie. The `normalize_total` scRNA-seq preset is never
   worse and less resolution-sensitive (opt-in, docs/04 §6.7).
 - **Resolution limit (methodology track, docs/05).** Rare populations are systematically lost at any
   single resolution. The fixed `local=True` doesn't help; a stability-based multi-resolution selection

@@ -1,0 +1,326 @@
+{
+  "datasets": {
+    "Levine_13": {
+      "n": 167044,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "resolutions": [
+        0.8,
+        1.0,
+        1.2,
+        1.5,
+        2.0
+      ],
+      "setups": {
+        "cosine/cosine": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7242223967519605,
+              "ari_sd": 0.04761792771290025,
+              "rare_quarter_f1_mean": 0.0717571882595142,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.7456389518578282,
+              "ari_sd": 0.06307973511362702,
+              "rare_quarter_f1_mean": 0.08040389224835331,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.7738868491355042,
+              "ari_sd": 0.051541051763461354,
+              "rare_quarter_f1_mean": 0.08622425384978646,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.8057890253146918,
+              "ari_sd": 0.037568463740672506,
+              "rare_quarter_f1_mean": 0.14114109551998963,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.801115381431725,
+              "ari_sd": 0.030624096027249484,
+              "rare_quarter_f1_mean": 0.1454719096684388,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 1.5,
+          "best_ari_mean": 0.8057890253146918,
+          "best_ari_sd": 0.037568463740672506,
+          "per_seed_best_ari": {
+            "mean": 0.8286419417621538,
+            "sd": 0.024088893271932258
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": 0.0,
+            "wins": 0,
+            "of": 10
+          }
+        },
+        "cosine/tanimoto": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7979910151331301,
+              "ari_sd": 0.040596966859143234,
+              "rare_quarter_f1_mean": 0.11178960207996842,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.07376861838116935,
+                "sd": 0.05482582400224238,
+                "wins": 9,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.8212276470061524,
+              "ari_sd": 0.042185362715901106,
+              "rare_quarter_f1_mean": 0.09635720553875068,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.075588695148324,
+                "sd": 0.06450191604400088,
+                "wins": 9,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.8114013994492328,
+              "ari_sd": 0.04000265650010513,
+              "rare_quarter_f1_mean": 0.15540648637847124,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.03751455031372848,
+                "sd": 0.06899940097205205,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.8226943385927751,
+              "ari_sd": 0.029162175634175027,
+              "rare_quarter_f1_mean": 0.13654375121522005,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.01690531327808308,
+                "sd": 0.05149821664257634,
+                "wins": 8,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.7901259853833822,
+              "ari_sd": 0.03982985969823957,
+              "rare_quarter_f1_mean": 0.16968527093195784,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.010989396048342925,
+                "sd": 0.05652548051453843,
+                "wins": 5,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 1.5,
+          "best_ari_mean": 0.8226943385927751,
+          "best_ari_sd": 0.029162175634175027,
+          "per_seed_best_ari": {
+            "mean": 0.850781014633579,
+            "sd": 0.015105305260625488
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": 0.022139072871425337,
+            "wins": 8,
+            "of": 10
+          }
+        },
+        "tanimoto/cosine": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7494190912880183,
+              "ari_sd": 0.07297313600634993,
+              "rare_quarter_f1_mean": 0.15095915766707851,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.025196694536057752,
+                "sd": 0.06607465114629858,
+                "wins": 7,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.7083354878581917,
+              "ari_sd": 0.036860433806998785,
+              "rare_quarter_f1_mean": 0.20452126471975976,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.03730346399963651,
+                "sd": 0.07642332744441402,
+                "wins": 5,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.7953677872424735,
+              "ari_sd": 0.0694183092364448,
+              "rare_quarter_f1_mean": 0.19563332153274887,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.021480938106969195,
+                "sd": 0.10742966143032713,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.7942880211144108,
+              "ari_sd": 0.0517117285750074,
+              "rare_quarter_f1_mean": 0.21080652065688796,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.011501004200281151,
+                "sd": 0.07525108643099691,
+                "wins": 4,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.8119626482467865,
+              "ari_sd": 0.027861132911653024,
+              "rare_quarter_f1_mean": 0.23005548333946013,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.010847266815061308,
+                "sd": 0.04813929997697456,
+                "wins": 6,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 2.0,
+          "best_ari_mean": 0.8119626482467865,
+          "best_ari_sd": 0.027861132911653024,
+          "per_seed_best_ari": {
+            "mean": 0.8388320300675032,
+            "sd": 0.03413042743867663
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": 0.010190088305349343,
+            "wins": 6,
+            "of": 10
+          }
+        },
+        "tanimoto/tanimoto": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7303974714186149,
+              "ari_sd": 0.04272530915955559,
+              "rare_quarter_f1_mean": 0.16097700042514276,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.006175074666654378,
+                "sd": 0.055433252850906466,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.7956500176027448,
+              "ari_sd": 0.05200317637240962,
+              "rare_quarter_f1_mean": 0.17229447067523676,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.05001106574491646,
+                "sd": 0.09849100878170826,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.7981638756277817,
+              "ari_sd": 0.045614157805685764,
+              "rare_quarter_f1_mean": 0.20701989402727222,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.024277026492277386,
+                "sd": 0.08121743471507603,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.817130984248451,
+              "ari_sd": 0.028508002428142873,
+              "rare_quarter_f1_mean": 0.20893738856481098,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.011341958933759055,
+                "sd": 0.0488990737966995,
+                "wins": 6,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.8197181934940246,
+              "ari_sd": 0.03133327533958987,
+              "rare_quarter_f1_mean": 0.21511106388402434,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.018602812062299457,
+                "sd": 0.05442622671273643,
+                "wins": 6,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 2.0,
+          "best_ari_mean": 0.8197181934940246,
+          "best_ari_sd": 0.03133327533958987,
+          "per_seed_best_ari": {
+            "mean": 0.8441369319425375,
+            "sd": 0.022281045767094186
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": 0.015494990180383727,
+            "wins": 8,
+            "of": 10
+          }
+        }
+      }
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "costal_plus": "0.1.0",
+    "threads": 8,
+    "default_matmul": "accelerate",
+    "l2_bytes_per_thread": 4194304,
+    "tile_budget_bytes": 2097152,
+    "veclib_maximum_threads": null,
+    "build": "cpython-39-darwin"
+  },
+  "k": 10
+}

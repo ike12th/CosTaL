@@ -434,14 +434,27 @@ comes from depth and how much from biology currently cannot be told apart — th
 > | tanimoto/cosine | 0.850 ± 0.019 (1.2) | 0.712 | 0.229 |
 > | tanimoto/tanimoto | 0.852 ± 0.022 (1.5) | 0.713 | 0.239 |
 >
-> Every setup that uses magnitude beats pure cosine, by ~0.03 ARI at the best resolution (1.3–3 seed
-> SDs) and 0.03–0.04 over the whole grid; the three are within noise of each other on ARI, with
-> Tanimoto selection ahead on the rare populations (0.23–0.24 vs 0.19). **So outcome 2 of §5 is not
-> universal:** magnitude adds signal when the direction alone doesn't carry it — 13 markers rather than
-> 32, populations that differ in overall abundance. The scRNA-seq sets had high η² too, but there the
-> 2000-gene direction already separated the labels. This is the published method's rationale, now
-> measured; it supports keeping Tanimoto weights as the default, and makes `select="tanimoto"` a
-> reasonable option for low-dimensional panels. Caveat: one dataset, 3 seeds.
+> With 3 seeds every setup using magnitude looked ~0.03 ARI ahead of pure cosine. **Rechecked with 10
+> seeds** (`bench/magnitude_confirm.py`, resolutions 0.8–2.0, comparisons paired by seed; numbers in
+> `bench/out/magnitude_confirm.json`), the effect is real but smaller:
+>
+> | select/weight | Per-seed best ARI | vs cosine/cosine, paired | F1 rarest quarter at 1.5 / 2.0 |
+> |---|---:|---|---|
+> | cosine/cosine | 0.829 ± 0.024 | — | 0.14 / 0.15 |
+> | **cosine/tanimoto (published)** | 0.851 ± 0.015 | +0.022, better on 8 of 10 seeds | 0.14 / 0.17 |
+> | tanimoto/cosine | 0.839 ± 0.034 | +0.010, 6 of 10 | 0.21 / 0.23 |
+> | tanimoto/tanimoto | 0.844 ± 0.022 | +0.015, 8 of 10 | 0.21 / 0.22 |
+>
+> - **Tanimoto weights help a little on ARI** (+0.02 for the published method; largest at the
+>   paper's 0.8–1.0, +0.07 paired) — the published method's rationale, now
+>   measured, on the one dataset where the row norm carries the labels (η² 0.89) and 13 markers leave
+>   the direction short of information.
+> - **Tanimoto selection doesn't add ARI but recovers rare populations better**: the rarest quarter's
+>   F1 is higher at every resolution from 0.8 to 2.0 (0.15–0.23 vs 0.07–0.17), at equal ARI.
+> - So outcome 2 of §5 is not universal: on low-dimensional panels where populations differ in overall
+>   abundance, magnitude adds signal. Defaults stay as published (Tanimoto weights; that is also what
+>   the data favor); `select="tanimoto"` is worth trying on such panels when rare populations matter.
+>   Caveat: one dataset.
 
 ---
 
