@@ -355,6 +355,10 @@ ARI is inflated by about 0.095, far beyond the seed-to-seed variation. A plausib
 so the density of their populations was doubled. **Only CosTaL was measured here**; whether other methods are inflated the same way on this file, and whether the ranking
 would change, was not measured. From now on, CosTaL+ accuracy evaluations always use the deduplicated data (docs/02 addendum).
 
+**Qualified (2026-10-12, `bench/out/stage_c3.json`):** the inflation depends on the setting. It is leidenalg at
+the paper's resolution 0.8. With igraph's Leiden at 0.8 the raw file scores 0.80 against 0.79 deduplicated
+(cosine or Tanimoto weights), and at the best resolution (0.2) both score 0.97.
+
 ### 8.5 x86-64 Linux and the original `p_knng` (GitHub Actions, 2026-10-12)
 
 Run on GitHub's x86-64 runners (2 vCPUs, pure-Rust `gemm` backend) by the `bench` and `golden`
@@ -434,3 +438,32 @@ rare path, f64 rescoring with the original's `tani_from_cos`, and an ε for the 
 Tanimoto scores. It is bit-identical to the Tanimoto brute force on synthetic data (all block sizes,
 backends, layouts, thread counts; signed and tie-heavy data included) and on Levine 20k, and runs
 3.4 s on 161,443 cells against 2.45 s for cosine.
+
+### 9.3 Stage C′: the 2×2, the row norm, and rare populations
+
+Details in docs/04 §5.1 and docs/05 §1.1; in short, on deduplicated Levine:
+
+- Tanimoto selection replaces half of the neighbors but not the accuracy; Tanimoto and cosine weights
+  are equal at their best resolution. The apparent 0.1-ARI lead of cosine weights at the paper's 0.8
+  is a resolution effect specific to leidenalg. The row norm is mostly within-population variation
+  (η² = 0.097). Defaults unchanged.
+- The resolution dominates (ARI 0.45–0.97), and rare populations are systematically lost at any single
+  resolution (Spearman(abundance, F1) up to +0.97) — the methodology track of docs/05 is justified.
+
+### 9.4 Stage D: norm-window pruning (Tanimoto selection)
+
+On the norm-sorted layout, each row block scans column blocks outward from its own norms and stops each
+side once the norms leave every row's window `ρ + 1/ρ ≤ (1+τ)/τ` (docs/04 §3). Exact (bit-identical
+with pruning on and off, and to the brute force).
+
+| Data (161,443 cells) | Pruned | Unpruned | Speedup | Tiles skipped |
+|---|---:|---:|---:|---:|
+| Levine, deduplicated | 3.24 s | 4.32 s | 1.33× | 2.6% |
+| Levine, rows rescaled by U(1, 20) | 1.58 s | 7.69 s | 4.9× | 55.5% |
+
+On Levine the gain is mostly the outward scan order (heaps fill with high-T candidates early), not the
+skipping, and 1.33× is below the §6 gate of 1.5×. **Kept anyway (delegated decision):** it is exact and
+cheap, and it pays most on data whose magnitudes really vary, which is the data Tanimoto selection is
+meant for. Separately, the norm-sorted layout itself is what makes Tanimoto selection fast at all:
+without it, 161,443 cells take 34.9 s instead of 3.8 s (looser per-block thresholds). Cosine selection
+is unaffected (no window; the cone bounds of docs/04 §3 remain to do).

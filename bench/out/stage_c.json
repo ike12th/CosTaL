@@ -1,0 +1,220 @@
+{
+  "environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "costal_plus": "0.1.0",
+    "threads": 8,
+    "default_matmul": "accelerate",
+    "l2_bytes_per_thread": 4194304,
+    "tile_budget_bytes": 2097152,
+    "veclib_maximum_threads": null,
+    "build": "cpython-39-darwin",
+    "igraph": "1.0.0",
+    "leidenalg": "0.12.0"
+  },
+  "n": 161443,
+  "k": 10,
+  "resolution": 0.8,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "graph": {
+    "edges": 1309514,
+    "knn_weights_graph_s": 2.273716167,
+    "stats": {
+      "fallback_rows": 0,
+      "row_block": 512,
+      "col_block": 512,
+      "matmul": "accelerate",
+      "margin": 10
+    }
+  },
+  "variants": [
+    {
+      "impl": "leidenalg",
+      "n_iterations": 1,
+      "seconds": 16.070247616400003,
+      "quality": 2165218.8357809475,
+      "ari_vs_paper_same_seed": 0.9427435044327659,
+      "ari_seed_to_seed": 0.840432495136557,
+      "labels_ari": {
+        "mean": 0.7662193397484732,
+        "sd": 0.00965139319237726
+      },
+      "labels_nmi": {
+        "mean": 0.8568262632340566,
+        "sd": 0.0038280855380342536
+      },
+      "labels_clusters": {
+        "mean": 18.6,
+        "sd": 0.7999999999999999
+      }
+    },
+    {
+      "impl": "leidenalg",
+      "n_iterations": 2,
+      "seconds": 21.347858849999994,
+      "quality": 2176846.0602980945,
+      "ari_vs_paper_same_seed": 0.9875868369944758,
+      "ari_seed_to_seed": 0.8842905456111133,
+      "labels_ari": {
+        "mean": 0.7659591907152731,
+        "sd": 0.008887950496196357
+      },
+      "labels_nmi": {
+        "mean": 0.8590428769885381,
+        "sd": 0.00419914869515834
+      },
+      "labels_clusters": {
+        "mean": 18.6,
+        "sd": 0.7999999999999999
+      }
+    },
+    {
+      "impl": "leidenalg",
+      "n_iterations": 3,
+      "seconds": 32.35366893360001,
+      "quality": 2177111.284427385,
+      "ari_vs_paper_same_seed": 0.9904324707472021,
+      "ari_seed_to_seed": 0.88716473498448,
+      "labels_ari": {
+        "mean": 0.7661838713572149,
+        "sd": 0.00899541842437882
+      },
+      "labels_nmi": {
+        "mean": 0.8595153567796585,
+        "sd": 0.004614079297507048
+      },
+      "labels_clusters": {
+        "mean": 18.4,
+        "sd": 0.4898979485566356
+      }
+    },
+    {
+      "impl": "leidenalg",
+      "n_iterations": 5,
+      "seconds": 40.45912471659998,
+      "quality": 2177798.2923853626,
+      "ari_vs_paper_same_seed": 0.9950177100674884,
+      "ari_seed_to_seed": 0.8928529680121011,
+      "labels_ari": {
+        "mean": 0.7659348109472865,
+        "sd": 0.008700680649796901
+      },
+      "labels_nmi": {
+        "mean": 0.8595727757059433,
+        "sd": 0.004478756530185349
+      },
+      "labels_clusters": {
+        "mean": 18.4,
+        "sd": 0.4898979485566356
+      }
+    },
+    {
+      "impl": "leidenalg",
+      "n_iterations": 10,
+      "seconds": 65.48248533379999,
+      "quality": 2178405.1792262867,
+      "ari_vs_paper_same_seed": 1.0,
+      "ari_seed_to_seed": 0.897997485491741,
+      "labels_ari": {
+        "mean": 0.7659449024531861,
+        "sd": 0.008235533483815614
+      },
+      "labels_nmi": {
+        "mean": 0.8597542064889332,
+        "sd": 0.00435398971590023
+      },
+      "labels_clusters": {
+        "mean": 18.2,
+        "sd": 0.39999999999999997
+      }
+    },
+    {
+      "impl": "leidenalg",
+      "n_iterations": -1,
+      "seconds": 269.3879978998001,
+      "quality": 2179489.436148622,
+      "ari_vs_paper_same_seed": 0.989542556420635,
+      "ari_seed_to_seed": 0.9084588264608529,
+      "labels_ari": {
+        "mean": 0.7658517140490902,
+        "sd": 0.008021296049946254
+      },
+      "labels_nmi": {
+        "mean": 0.860150793057802,
+        "sd": 0.004566394874389672
+      },
+      "labels_clusters": {
+        "mean": 18.4,
+        "sd": 0.7999999999999999
+      }
+    },
+    {
+      "impl": "igraph",
+      "n_iterations": 2,
+      "seconds": 1.7082984833999035,
+      "quality": 2173156.6662312644,
+      "ari_vs_paper_same_seed": 0.8711168912686809,
+      "ari_seed_to_seed": 0.847076932085554,
+      "labels_ari": {
+        "mean": 0.7926607846048523,
+        "sd": 0.04940911832645113
+      },
+      "labels_nmi": {
+        "mean": 0.8680887199381173,
+        "sd": 0.013220001030989656
+      },
+      "labels_clusters": {
+        "mean": 17.6,
+        "sd": 0.4898979485566356
+      }
+    },
+    {
+      "impl": "igraph",
+      "n_iterations": 10,
+      "seconds": 4.788910183400003,
+      "quality": 2175626.659955655,
+      "ari_vs_paper_same_seed": 0.8799756895720087,
+      "ari_seed_to_seed": 0.85822634556066,
+      "labels_ari": {
+        "mean": 0.7923312812034536,
+        "sd": 0.04939314205112342
+      },
+      "labels_nmi": {
+        "mean": 0.8687181304230839,
+        "sd": 0.012968998830446929
+      },
+      "labels_clusters": {
+        "mean": 17.4,
+        "sd": 0.4898979485566356
+      }
+    },
+    {
+      "impl": "igraph",
+      "n_iterations": -1,
+      "seconds": 15.842627225000161,
+      "quality": 2176499.826020384,
+      "ari_vs_paper_same_seed": 0.8830550449504351,
+      "ari_seed_to_seed": 0.8639168125513434,
+      "labels_ari": {
+        "mean": 0.7919086103602464,
+        "sd": 0.04898876693074013
+      },
+      "labels_nmi": {
+        "mean": 0.8685782757302313,
+        "sd": 0.012717497086390672
+      },
+      "labels_clusters": {
+        "mean": 17.6,
+        "sd": 0.4898979485566356
+      }
+    }
+  ]
+}

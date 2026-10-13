@@ -33,6 +33,29 @@ For each gated population, compute per-population recall; plot grouped by abunda
 
 This step is ~20 lines, uses the already-downloaded data, and runs in a few minutes. **Do it first; don't skip it.**
 
+> **Done (2026-10-12) — the disease exists.** Deduplicated Levine, the published CosTaL graph, leidenalg
+> (2 iterations, which reproduces the paper's 10 — docs/03 §9.1), 3 seeds; `bench/rare_populations.py`,
+> numbers in `bench/out/rare_populations.json`.
+>
+> A first pass scored each population by its share in its dominant cluster (`bench/stage_c2.py`) and found
+> no trend (Spearman −0.14). **That metric can't see absorption**: a rare population swallowed whole by a
+> big cluster still sits in one cluster and scores 1.0. Scored instead by the F1 of its best-matching
+> cluster (gated cells only, as for ARI):
+>
+> | Resolution | ARI | F1, 5 rarest | F1, 5 largest | Spearman(abundance, F1) |
+> |---:|---:|---:|---:|---|
+> | 0.2 | 0.968 | 0.28 | 0.98 | +0.97 (p = 5×10⁻⁹) |
+> | 0.4 | 0.945 | 0.32 | 0.97 | +0.96 (p = 3×10⁻⁸) |
+> | 0.8 (paper) | 0.768 | 0.44 | 0.89 | +0.64 (p = 0.014) |
+> | 1.2 | 0.642 | 0.49 | 0.81 | +0.31 (p = 0.29) |
+>
+> Rare populations are systematically worse recovered, and the global resolution trades one end against
+> the other: raising it recovers rare populations (population 12: F1 0.10 → 0.78 from 0.2 to 1.2) while
+> splitting the largest (populations 7 and 10: 0.99 → 0.64–0.73). ARI, dominated by the large
+> populations, hides this and prefers 0.2. **By this section's own rule, the methodology track is worth
+> the investment.** Caveat: four rare populations (5, 14, 6, 3) stay below F1 0.55 at every resolution,
+> so for them the resolution limit is not the whole story — they may not be separable in this graph.
+
 ---
 
 ## 2. Three candidate paths

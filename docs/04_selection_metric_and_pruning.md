@@ -335,6 +335,28 @@ Another directly relevant finding: the original scRNA-seq preprocessing has **no
 so the row norms there mainly record sequencing depth. How much of the Tanimoto gain the original paper observed on scRNA-seq
 comes from depth and how much from biology currently cannot be told apart — this experiment can answer exactly that. See §6.7.
 
+> **Measured on Levine (2026-10-12; `bench/stage_c2.py`, `bench/stage_c3.py`; deduplicated, k = 10;
+> numbers in `bench/out/stage_c2.json`, `stage_c3.json`).**
+>
+> - **The row norm is mostly within-population variation:** the gating labels explain η² = 0.097 of its
+>   variance; it tracks overall marker abundance (Spearman 0.81).
+> - **The §5 2×2 at the paper's resolution 0.8** (leidenalg, 5 seeds), select/weight:
+>   cosine/cosine 0.862 ± 0.052, cosine/tanimoto (published) 0.766 ± 0.009, tanimoto/cosine
+>   0.769 ± 0.010, tanimoto/tanimoto 0.764 ± 0.011. Changing the selection metric replaces half of the
+>   neighbors (mean Jaccard 0.495; 1.2% of rows identical) but leaves accuracy unchanged.
+> - **The 0.1 gap between the weightings is a resolution effect, not structure.** Sweeping the resolution
+>   over 0.2–2.0, at each setup's best resolution (0.2) the weightings are equal: leidenalg 0.962 vs 0.968,
+>   igraph 0.969 vs 0.970, raw file with igraph 0.969 vs 0.968. Cosine weights lead only with leidenalg in
+>   the middle range (0.6–1.0), where Tanimoto weights push it to more clusters at the same resolution;
+>   with igraph there is no gap at any resolution.
+> - **Outcome 2 of §5 ("tie") on this dataset:** on Levine, magnitude adds no signal for the gated
+>   populations, in selection or in weighting. Defaults are unchanged (the published method stays the
+>   default under §6.5, and nothing measured here beats it at its best resolution). Caveat: this is one
+>   dataset, and η² already said magnitude was unlikely to help there; data where magnitude differs
+>   between populations (§6.7 presets, spatial data) remains open.
+> - **The resolution matters far more:** ARI spans 0.45–0.97 over 0.2–2.0, and docs/05 §1.1 shows why no
+>   single value is right (rare populations need a higher one than large populations).
+
 ---
 
 ## 6. API shape

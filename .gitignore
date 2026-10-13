@@ -16,6 +16,10 @@ bench/out/*
 !bench/out/stage_a.linux-x86_64.json
 !bench/out/golden_pknng.json
 !bench/out/pknng_analysis.json
+!bench/out/stage_c.json
+!bench/out/stage_c2.json
+!bench/out/stage_c3.json
+!bench/out/rare_populations.json
 .venv-arm64/
 bench/data/
 .DS_Store
