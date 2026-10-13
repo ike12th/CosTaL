@@ -535,23 +535,37 @@ The paper's fixed 0.8 is far from the best resolution on four of six sets; the b
 over 0.05–1.0 (docs/05 is about why no single value can be right). What the 2×2, the row norm and the
 presets do to these numbers is in docs/04 §5.1 and §6.7.
 
-### 10.4 End-to-end time
+### 10.4 End-to-end time at identical results
 
-`bench/timing_small.py`, idle M1 Pro, k = 10, best of 3 (Levine_13: 1 run). "Original" is the `bc()`
-path that CosTaL takes on macOS (phenograph's brute-force cosine kNN + `map_tani` + `build_graph`),
-**not** the Linux `p_knng` path the paper timed (docs/02 §1.1); Leiden at the paper's settings.
+`bench/timing_small.py` (rewritten 2026-10-13 to check equality in the same run), idle M1 Pro,
+k = 10, best of 3 under 100k cells, one run above. "Original" is the `bc()` path that CosTaL takes
+on macOS (phenograph's brute-force cosine kNN + `map_tani` + `build_graph`), **not** the Linux
+`p_knng` path the paper timed (docs/02 §1.1); Leiden at the paper's settings for both. Same neighbors:
+share of cells whose neighbor sets are identical; accuracy: ARI on labeled cells, or the rare
+population's best-match F1 for the one-population sets.
 
-| Dataset | Cells × features | Original | CosTaL+, paper Leiden | CosTaL+, `leiden="fast"` | Graph only |
-|---|---|---:|---:|---:|---:|
-| E-MTAB-3321 | 124 × 2000 | 0.06 s | 0.02 s (3×) | 0.004 s (15×) | 11× |
-| GSE81861 | 561 × 2000 | 0.94 s | 0.11 s (9×) | 0.02 s (47×) | 45× |
-| GSE74672 | 2,881 × 2000 | 22.3 s | 0.65 s (34×) | 0.14 s (155×) | 159× |
-| GSE84133 | 3,605 × 2000 | 35.1 s | 0.83 s (42×) | 0.17 s (204×) | 212× |
-| Levine_13 | 167,044 × 13 | 170.8 s | 71.7 s (2.4×) | 5.5 s (31×) | 29× |
+| Dataset | Cells × features | Original | CosTaL+ | CosTaL+ `leiden="fast"` | Graph only | Same neighbors | Same-seed partition ARI | Accuracy (original / CosTaL+ / fast) |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| E-MTAB-3321 | 124 × 2,000 | 0.06 s | 0.02 s (3.1×) | 0.004 s (17×) | 13× | 100% | 1.000 | ARI 0.687 / 0.687 / 0.687 |
+| GSE81861 | 561 × 2,000 | 1.0 s | 0.11 s (9.1×) | 0.02 s (41×) | 40× | 100% | 1.000 | ARI 1.000 / 1.000 / 1.000 |
+| GSE74672 | 2,881 × 2,000 | 26 s | 0.76 s (35×) | 0.13 s (197×) | 205× | 100% | 1.000 | ARI 0.495 / 0.495 / 0.492 |
+| GSE84133 | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.21 s (195×) | 208× | 100% | 1.000 | ARI 0.845 / 0.845 / 0.851 |
+| Nilsson_rare | 44,140 × 14 | 32 s | 12 s (2.7×) | 0.90 s (36×) | 31× | 100% | 0.610 | HSC F1 0.152 / 0.153 / 0.189 |
+| Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 2.3 s (39×) | 39× | 100% | 1.000 | ARI 0.843 / 0.843 / 0.808 |
+| Levine_13 | 167,044 × 13 | 165 s | 69 s (2.4×) | 5.8 s (28×) | 26× | 100% | 0.961 | ARI 0.849 / 0.873 / 0.846 |
+| Levine_32 (dedup.) | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% | 1.000 | ARI 0.756 / 0.756 / 0.758 |
+| Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% | 0.916 | activated F1 0.020 / 0.019 / 0.038 |
 
-- On scRNA-seq the original's time is the kNN (34.3 of 35.1 s on GSE84133); CosTaL+ builds the graph in
-  0.16 s, so Leiden (0.67 s) becomes the larger part.
-- On Levine_13 (13 features, 167k cells) the graph takes 3.6 s against the original's 103.7 s, and
-  leidenalg with the paper's 10 iterations (68 s) is now 95% of the time. `leiden="fast"` takes it to
-  1.9 s; 2 leidenalg iterations reproduce 10 (§9.1) at about a third.
-- Preprocessing (scanpy, the same for both) takes 0.3–0.5 s on these sets.
+- **Same neighbors everywhere, same partitions on six of nine.** On Nilsson_rare the two graphs have
+  identical edge lists (324,397 edges) and every weight differs by at most 5.7×10⁻⁷ (relative
+  5.8×10⁻⁷): the original computes Tanimoto in float32 from the float32 rows, CosTaL+ in float64.
+  Leiden amplifies that rounding into a different partition at the same seed (ARI 0.61), at the same
+  accuracy (HSC F1 0.152 vs 0.153). Levine_13 and Mosmann_rare are the same case (0.96, 0.92).
+- **Where the time goes.** The graph is 13–208× faster. With the paper's Leiden settings, leidenalg
+  is 79–97% of CosTaL+'s time (95–97% on the large cytometry sets), so end to end it is 2.4–4.3× on
+  those and 3–40× on scRNA-seq; with `leiden="fast"` it is 17–197× at comparable accuracy (one seed
+  each; Samusik_01 0.808 vs 0.843 is within the ±0.05 seed-to-seed spread igraph showed on Levine,
+  §9.1).
+- Preprocessing (scanpy, the same for both) takes 0.3–5 s on the scRNA-seq sets.
+
+The earlier version of this table (same day, five datasets, no equality check) is superseded.

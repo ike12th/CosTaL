@@ -28,3 +28,14 @@ def test_row_l2_norms_rejects_non_contiguous():
     x = np.zeros((8, 8), dtype=np.float32)[:, ::2]
     with pytest.raises(ValueError):
         costal_plus.row_l2_norms(x)
+
+
+def test_pyproject_version_matches_the_extension():
+    import re
+    from pathlib import Path
+
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    if not pyproject.exists():  # pragma: no cover - tests run outside the source tree
+        pytest.skip("no pyproject.toml next to the tests")
+    version = re.search(r'^version = "([^"]+)"', pyproject.read_text(), re.M).group(1)
+    assert version == costal_plus.__version__

@@ -4,101 +4,253 @@
       "cells": 124,
       "features": 2000,
       "repeat": 3,
-      "preprocess_s": 4.886345208,
-      "original_knn_s": 0.04076441700000011,
-      "original_weights_graph_s": 0.0043845419999986035,
-      "original_leiden_paper_s": 0.017028458000000413,
-      "costal_plus_graph_s": 0.003983458999998746,
-      "costal_plus_leiden_paper_s": 0.01702191699999922,
-      "costal_plus_leiden_fast_s": 0.00028429099999982554,
+      "preprocess_s": 2.618424416,
+      "original_knn_s": 0.041921874999999886,
+      "original_weights_graph_s": 0.004725665999998796,
+      "original_leiden_paper_s": 0.01745908300000032,
+      "costal_plus_graph_s": 0.0034821249999996695,
+      "costal_plus_leiden_paper_s": 0.0170612090000013,
+      "costal_plus_leiden_fast_s": 0.0002817500000009687,
       "end_to_end_s": {
-        "original": 0.062177416999999124,
-        "costal_plus_paper": 0.021005375999997966,
-        "costal_plus_fast": 0.004267749999998571
+        "original": 0.064106623999999,
+        "costal_plus_paper": 0.020543334000000968,
+        "costal_plus_fast": 0.0037638750000006382
       },
-      "speedup_graph": 11.334109124761401,
-      "speedup_end_to_end_paper": 2.960071602622355,
-      "speedup_end_to_end_fast": 14.569132915475354
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 0.6874447148644961,
+        "costal_plus_paper": 0.6874447148644961,
+        "costal_plus_fast": 0.6874447148644961
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 13.396285601465516,
+      "speedup_end_to_end_paper": 3.1205559915443124,
+      "speedup_end_to_end_fast": 17.032081033506195
     },
     "GSE81861": {
       "cells": 561,
       "features": 2000,
       "repeat": 3,
-      "preprocess_s": 0.5473188750000002,
-      "original_knn_s": 0.8347590829999998,
-      "original_weights_graph_s": 0.021615208000000052,
-      "original_leiden_paper_s": 0.08693891700000123,
-      "costal_plus_graph_s": 0.019032250000000417,
-      "costal_plus_leiden_paper_s": 0.08732416699999845,
-      "costal_plus_leiden_fast_s": 0.0011603749999995472,
+      "preprocess_s": 1.9102165830000004,
+      "original_knn_s": 0.9147747919999993,
+      "original_weights_graph_s": 0.025031041999998394,
+      "original_leiden_paper_s": 0.09044241699999844,
+      "costal_plus_graph_s": 0.023703083000000902,
+      "costal_plus_leiden_paper_s": 0.08928591700000155,
+      "costal_plus_leiden_fast_s": 0.0011621659999967449,
       "end_to_end_s": {
-        "original": 0.9433132080000011,
-        "costal_plus_paper": 0.10635641699999887,
-        "costal_plus_fast": 0.020192624999999964
+        "original": 1.0302482509999962,
+        "costal_plus_paper": 0.11298900000000245,
+        "costal_plus_fast": 0.024865248999997647
       },
-      "speedup_graph": 44.995956389811035,
-      "speedup_end_to_end_paper": 8.869358658443817,
-      "speedup_end_to_end_fast": 46.71572952996466
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 1.0,
+        "costal_plus_paper": 1.0,
+        "costal_plus_fast": 1.0
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 39.649096870645984,
+      "speedup_end_to_end_paper": 9.11812876474678,
+      "speedup_end_to_end_fast": 41.43325695230696
     },
     "GSE74672": {
       "cells": 2881,
       "features": 2000,
       "repeat": 3,
-      "preprocess_s": 0.3281965410000005,
-      "original_knn_s": 21.716560166000008,
-      "original_weights_graph_s": 0.10073749999999393,
-      "original_leiden_paper_s": 0.5166750000000064,
-      "costal_plus_graph_s": 0.1370241250000035,
-      "costal_plus_leiden_paper_s": 0.5141126249999957,
-      "costal_plus_leiden_fast_s": 0.007170666999996911,
+      "preprocess_s": 0.35424116699999786,
+      "original_knn_s": 25.660089291999995,
+      "original_weights_graph_s": 0.22659495799999263,
+      "original_leiden_paper_s": 0.5732982500000006,
+      "costal_plus_graph_s": 0.1261228329999966,
+      "costal_plus_leiden_paper_s": 0.6313167499999963,
+      "costal_plus_leiden_fast_s": 0.008345916999999758,
       "end_to_end_s": {
-        "original": 22.333972666000008,
-        "costal_plus_paper": 0.6511367499999992,
-        "costal_plus_fast": 0.1441947920000004
+        "original": 26.459982499999988,
+        "costal_plus_paper": 0.7574395829999929,
+        "costal_plus_fast": 0.13446874999999636
       },
-      "speedup_graph": 159.22230969181118,
-      "speedup_end_to_end_paper": 34.29997257258178,
-      "speedup_end_to_end_fast": 154.8875126225082
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 0.49494606035065897,
+        "costal_plus_paper": 0.49494606035065897,
+        "costal_plus_fast": 0.49203681732042415
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 205.24978415288757,
+      "speedup_end_to_end_paper": 34.93345620412372,
+      "speedup_end_to_end_fast": 196.7742133395358
     },
     "GSE84133": {
       "cells": 3605,
       "features": 2000,
       "repeat": 3,
-      "preprocess_s": 0.2514628750000014,
-      "original_knn_s": 34.29428091599999,
-      "original_weights_graph_s": 0.1658760840000184,
-      "original_leiden_paper_s": 0.6715971250000052,
-      "costal_plus_graph_s": 0.16283295800002406,
-      "costal_plus_leiden_paper_s": 0.6697441670000046,
-      "costal_plus_leiden_fast_s": 0.009574084000007588,
+      "preprocess_s": 0.4351898329999955,
+      "original_knn_s": 39.935382417,
+      "original_weights_graph_s": 0.3124850840000022,
+      "original_leiden_paper_s": 0.8682004580000182,
+      "costal_plus_graph_s": 0.19304095800001164,
+      "costal_plus_leiden_paper_s": 0.8314075000000116,
+      "costal_plus_leiden_fast_s": 0.017323459000010644,
       "end_to_end_s": {
-        "original": 35.131754125000015,
-        "costal_plus_paper": 0.8325771250000287,
-        "costal_plus_fast": 0.17240704200003165
+        "original": 41.11606795900002,
+        "costal_plus_paper": 1.0244484580000233,
+        "costal_plus_fast": 0.21036441700002229
       },
-      "speedup_graph": 211.62888289479403,
-      "speedup_end_to_end_paper": 42.196396069611936,
-      "speedup_end_to_end_fast": 203.77215290889083
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 0.8453393326600381,
+        "costal_plus_paper": 0.8453393326600381,
+        "costal_plus_fast": 0.8509016994510674
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 208.49392749593366,
+      "speedup_end_to_end_paper": 40.134833175764406,
+      "speedup_end_to_end_fast": 195.4516288702745
     },
     "Levine_13": {
       "cells": 167044,
       "features": 13,
       "repeat": 1,
-      "preprocess_s": 0.036177209000015864,
-      "original_knn_s": 100.57769508300001,
-      "original_weights_graph_s": 3.1078174579999995,
-      "original_leiden_paper_s": 67.1361005,
-      "costal_plus_graph_s": 3.5869924169999763,
-      "costal_plus_leiden_paper_s": 68.11874791700001,
-      "costal_plus_leiden_fast_s": 1.899510792000001,
+      "preprocess_s": 0.035580249999952684,
+      "original_knn_s": 96.08876029099997,
+      "original_weights_graph_s": 3.0410519999999224,
+      "original_leiden_paper_s": 66.18969895800001,
+      "costal_plus_graph_s": 3.7419734579999613,
+      "costal_plus_leiden_paper_s": 64.78649299999995,
+      "costal_plus_leiden_fast_s": 2.080527625000059,
       "end_to_end_s": {
-        "original": 170.821613041,
-        "costal_plus_paper": 71.70574033399998,
-        "costal_plus_fast": 5.486503208999977
+        "original": 165.3195112489999,
+        "costal_plus_paper": 68.52846645799991,
+        "costal_plus_fast": 5.82250108300002
       },
-      "speedup_graph": 28.90597483551934,
-      "speedup_end_to_end_paper": 2.3822585506449787,
-      "speedup_end_to_end_fast": 31.134878908078793
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 0.9610279986285878,
+      "accuracy": {
+        "original": 0.849347042186544,
+        "costal_plus_paper": 0.8732957201136285,
+        "costal_plus_fast": 0.8464712489730293
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 26.491318926666988,
+      "speedup_end_to_end_paper": 2.412420995154208,
+      "speedup_end_to_end_fast": 28.39321262329756
+    },
+    "Nilsson_rare": {
+      "cells": 44140,
+      "features": 14,
+      "repeat": 3,
+      "preprocess_s": 0.01283141700000101,
+      "original_knn_s": 19.855042415999947,
+      "original_weights_graph_s": 0.834115875000009,
+      "original_leiden_paper_s": 11.597650832999989,
+      "costal_plus_graph_s": 0.6740223749999927,
+      "costal_plus_leiden_paper_s": 11.362869499999988,
+      "costal_plus_leiden_fast_s": 0.23022266700002092,
+      "end_to_end_s": {
+        "original": 32.286809123999944,
+        "costal_plus_paper": 12.03689187499998,
+        "costal_plus_fast": 0.9042450420000137
+      },
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 0.6104315962948063,
+      "accuracy": {
+        "original": 0.152153987167736,
+        "costal_plus_paper": 0.1533487297921478,
+        "costal_plus_fast": 0.1890660592255125
+      },
+      "accuracy_metric": "rare-population F1",
+      "speedup_graph": 30.69506155637664,
+      "speedup_end_to_end_paper": 2.682321105754719,
+      "speedup_end_to_end_fast": 35.70581825097744
+    },
+    "Samusik_01": {
+      "cells": 86864,
+      "features": 39,
+      "repeat": 3,
+      "preprocess_s": 0.04433812500002432,
+      "original_knn_s": 58.11095883300004,
+      "original_weights_graph_s": 1.6757200000000125,
+      "original_leiden_paper_s": 30.990297042000066,
+      "costal_plus_graph_s": 1.5295069999999669,
+      "costal_plus_leiden_paper_s": 30.294115666999915,
+      "costal_plus_leiden_fast_s": 0.7759286670000165,
+      "end_to_end_s": {
+        "original": 90.77697587500012,
+        "costal_plus_paper": 31.82362266699988,
+        "costal_plus_fast": 2.3054356669999834
+      },
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 0.8426887080027979,
+        "costal_plus_paper": 0.8426887080027979,
+        "costal_plus_fast": 0.8080007337740226
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 39.08885597320009,
+      "speedup_end_to_end_paper": 2.852502897765095,
+      "speedup_end_to_end_fast": 39.375193667028825
+    },
+    "Levine_32": {
+      "cells": 161443,
+      "features": 32,
+      "repeat": 1,
+      "preprocess_s": 0.0,
+      "original_knn_s": 143.326790458,
+      "original_weights_graph_s": 2.9925548329999856,
+      "original_leiden_paper_s": 153.80303762500012,
+      "costal_plus_graph_s": 3.2719855830000597,
+      "costal_plus_leiden_paper_s": 66.181239,
+      "costal_plus_leiden_fast_s": 1.754914208999935,
+      "end_to_end_s": {
+        "original": 300.1223829160001,
+        "costal_plus_paper": 69.45322458300006,
+        "costal_plus_fast": 5.026899791999995
+      },
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 1.0,
+      "accuracy": {
+        "original": 0.755996044819092,
+        "costal_plus_paper": 0.755996044819092,
+        "costal_plus_fast": 0.7575700610763845
+      },
+      "accuracy_metric": "ARI",
+      "speedup_graph": 44.71882335032811,
+      "speedup_end_to_end_paper": 4.3212159653917706,
+      "speedup_end_to_end_fast": 59.70327544496244
+    },
+    "Mosmann_rare": {
+      "cells": 396460,
+      "features": 15,
+      "repeat": 1,
+      "preprocess_s": 0.06692416700002468,
+      "original_knn_s": 1382.216403416,
+      "original_weights_graph_s": 8.333365041999969,
+      "original_leiden_paper_s": 435.3368197910004,
+      "costal_plus_graph_s": 19.172042707999935,
+      "costal_plus_leiden_paper_s": 568.1675342919998,
+      "costal_plus_leiden_fast_s": 42.15427591699972,
+      "end_to_end_s": {
+        "original": 1825.8865882490004,
+        "costal_plus_paper": 587.3395769999997,
+        "costal_plus_fast": 61.32631862499966
+      },
+      "identical_neighbor_sets": 1.0,
+      "partition_ari_original_vs_costal_plus_same_seed": 0.9159900449426337,
+      "accuracy": {
+        "original": 0.019881440948472412,
+        "costal_plus_paper": 0.01930399362436908,
+        "costal_plus_fast": 0.03798571179648022
+      },
+      "accuracy_metric": "rare-population F1",
+      "speedup_graph": 72.53007880468387,
+      "speedup_end_to_end_paper": 3.1087409392284173,
+      "speedup_end_to_end_fast": 29.773295204853177
     }
   },
   "environment": {

@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use CosTaL+, please cite the CosTaL paper."
+title: "CosTaL+"
+abstract: "A high-performance rewrite of CosTaL: exact cosine kNN graph, Tanimoto edge reweighting and Leiden community detection for single-cell data."
+type: software
+authors:
+  - family-names: Li
+    given-names: Yijia
+license: MIT
+repository-code: "https://github.com/ike12th/costal-plus"
+version: 1.0.0
+preferred-citation:
+  type: article
+  title: "CosTaL: an accurate and scalable graph-based clustering algorithm for high-dimensional single-cell data analysis"
+  authors:
+    - family-names: Li
+      given-names: Yijia
+    - family-names: Nguyen
+      given-names: Jonathan
+    - family-names: Anastasiu
+      given-names: David C.
+    - family-names: Arriaga
+      given-names: Edgar A.
+  journal: "Briefings in Bioinformatics"
+  volume: 24
+  issue: 3
+  start: "bbad157"
+  year: 2023
+  doi: "10.1093/bib/bbad157"
