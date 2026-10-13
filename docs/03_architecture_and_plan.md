@@ -499,6 +499,13 @@ is unaffected (no window; the cone bounds of docs/04 §3 remain to do).
   arcsinh, where the paper reports a sparsity of 22.188%; no threshold or rounding of this file gives
   that number (for Levine_32 the paper's 26.999% is exactly the share of negatives, docs/04 §4). The
   paper probably used another version of the file. **Question for the author.**
+  *Update (2026-10-13):* Table 2's "non-zeros" count positive entries on all four other cytometry sets
+  (Levine_32, Samusik_01, Nilsson_rare, Mosmann_rare: exact matches), so for Levine_13 the paper's
+  1,689,738 positives against our 1,536,151 mean different raw values, not a different transform (any
+  arcsinh keeps the sign). HDCytoData's `Levine_13dim_SE` (ExperimentHub EH2242) is identical to the
+  GitHub `Levine_13dim_notransform.fcs` value for value, so it is not that either. The remaining
+  candidate is the pre-transformed `Levine_13dim.fcs` of the same GitHub repository (9.4 MB, not
+  downloaded).
 
 ### 10.2 Parity with the original on scRNA-seq
 
