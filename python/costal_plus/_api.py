@@ -39,7 +39,8 @@ class KnnGraph:
     """An exact kNN.
 
     Attributes:
-        idx: ``(n, k)`` int32 original row indices; each row sorted by (cosine desc, index asc).
+        idx: ``(n, k)`` int32 original row indices; each row sorted by (selection similarity desc,
+            index asc) — cosine, or Tanimoto with ``select="tanimoto"``.
         cos: ``(n, k)`` float64 cosine after f64 rescoring.
         norms: ``(n,)`` float64 raw (un-normalized) row norms, used by Tanimoto edge weights.
         meta: parameters, statistics and input diagnostics (docs/04 §6.6).
@@ -99,13 +100,38 @@ def _as_matrix(X: Any) -> np.ndarray:
     return np.ascontiguousarray(X, dtype=np.float32)
 
 
-def _diagnose(X: np.ndarray) -> dict[str, Any]:
-    """Input diagnostics: record only, never modify the data (docs/04 §6.6)."""
-    norms = np.sqrt(np.einsum("ij,ij->i", X, X, dtype=np.float64))
-    mean_norm = norms.mean()
-    col_mean = X.mean(axis=0, dtype=np.float64)
-    col_std = X.std(axis=0, dtype=np.float64)
+# Row chunks for streaming statistics: at most ~8 MB of float64 at a time, whatever the size of X
+_CHUNK_BYTES = 1 << 23
+
+
+def _row_chunks(n: int, d: int):
+    step = max(1, _CHUNK_BYTES // (8 * max(d, 1)))
+    return [(a, min(a + step, n)) for a in range(0, n, step)]
+
+
+def _diagnose(X: np.ndarray, norms: np.ndarray) -> dict[str, Any]:
+    """Input diagnostics: record only, never modify the data (docs/04 §6.6).
+
+    Streams over row chunks, so the extra memory stays bounded however large X is; the row norms
+    are the exact f64 ones the kNN kernel already computed."""
+    n, d = X.shape
+    chunks = _row_chunks(n, d)
+    col_sum = np.zeros(d)
+    negative = nonzero = 0
+    for a, b in chunks:
+        c = X[a:b]
+        col_sum += c.sum(axis=0, dtype=np.float64)
+        negative += int(np.count_nonzero(c < 0))
+        nonzero += int(np.count_nonzero(c))
+    col_mean = col_sum / max(n, 1)
+    col_ss = np.zeros(d)
+    for a, b in chunks:
+        c = X[a:b].astype(np.float64) - col_mean
+        col_ss += np.einsum("ij,ij->j", c, c)
+    col_std = np.sqrt(col_ss / max(n, 1))
+    mean_norm = norms.mean() if n else 0.0
     live = col_std > 0
+    size = max(X.size, 1)
     return {
         # ≈ 0 ⇒ rows are already unit-normalized, so Tanimoto ≡ c/(2−c)
         "row_norm_cv": float(norms.std() / mean_norm) if mean_norm > 0 else 0.0,
@@ -113,9 +139,25 @@ def _diagnose(X: np.ndarray) -> dict[str, Any]:
         "columns_centered": bool(
             live.any() and np.all(np.abs(col_mean[live]) <= 0.05 * col_std[live])
         ),
-        "negative_fraction": float(np.count_nonzero(X < 0) / X.size),
-        "nonzero_fraction": float(np.count_nonzero(X) / X.size),
+        "negative_fraction": negative / size,
+        "nonzero_fraction": nonzero / size,
     }
+
+
+def _igraph(n: int, rows: np.ndarray, cols: np.ndarray, weights: np.ndarray):
+    """An igraph.Graph from an edge list, through ``add_edges`` in blocks of 2^22 edges.
+
+    Measured on 3M edges (peak RSS): ``Graph(edges=...)`` in one call 684 MB, blocks of 2^18 edges
+    828 MB (igraph re-indexes the whole graph on every call), blocks of 2^22 415 MB and the fastest.
+    The edge order, and so every Leiden result, is the same either way."""
+    import igraph as ig
+
+    graph = ig.Graph(n=int(n))
+    step = 1 << 22
+    for a in range(0, len(rows), step):
+        graph.add_edges(np.column_stack([rows[a:a + step], cols[a:a + step]]))
+    graph.es["weight"] = weights.tolist()
+    return graph
 
 
 def knn(
@@ -168,7 +210,7 @@ def knn(
         "compat": compat,
         "version": _ext.__version__,
         "stats": dict(stats),
-        "diagnostics": _diagnose(X),
+        "diagnostics": _diagnose(X, norms),
     }
     if effective == "tanimoto":
         # The selection itself uses magnitude here, so warn now rather than at reweight()
@@ -252,7 +294,7 @@ def build_graph(
     n_threads: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """One call: kNN → edge weights → symmetrization, returning the upper-triangular edge list
-    ``(rows, cols, weights)``.
+    ``(rows, cols, weights)`` as int32, int32 and float64 arrays.
 
     Symmetrization is the original's fuzzy union ``S + Sᵀ − S∘Sᵀ`` (**not** ``(S + Sᵀ)/2``), with
     self-loops and exactly-zero edges removed; edges are in ascending (row, col) order, matching
@@ -261,8 +303,8 @@ def build_graph(
     Hand it to Leiden the same way as the original::
 
         rows, cols, w = costal_plus.build_graph(X)
-        G = igraph.Graph(n=len(X), edges=list(zip(rows.tolist(), cols.tolist())),
-                         edge_attrs={"weight": w.tolist()})
+        G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]),
+                         edge_attrs={"weight": w})
     """
     if symmetrize != "fuzzy_union":
         raise ValueError(f"symmetrize currently supports only 'fuzzy_union', got {symmetrize!r}")
@@ -331,15 +373,16 @@ def find_communities(
             "resolution 0.8 and 10 iterations (docs/04 §0.0)"
         )
     try:
-        import igraph as ig
+        import igraph  # noqa: F401  (fail before the expensive kNN, not after)
     except ImportError as exc:  # pragma: no cover - depends on the environment
         raise ImportError("find_communities needs igraph: pip install costal-plus[leiden]") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     w = reweight(g, weight)
     rows, cols, ew = _ext._fuzzy_union(g.idx, w)
-    graph = ig.Graph(n=g.n, edges=np.column_stack([rows, cols]).tolist(),
-                     edge_attrs={"weight": ew.tolist()})
+    del w
+    graph = _igraph(g.n, rows, cols, ew)
+    del rows, cols, ew
     if leiden == "paper":
         try:
             import leidenalg as la

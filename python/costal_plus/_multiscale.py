@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 
 from . import _costal_plus as _ext
-from ._api import knn, reweight
+from ._api import _igraph, knn, reweight
 
 __all__ = ["RESOLUTIONS", "find_communities_multiscale"]
 
@@ -32,7 +32,7 @@ _NESTED, _PROPER = 0.8, 0.9
 
 
 def _ensemble(graph, resolutions, seeds, leiden: str, n_iterations: int) -> np.ndarray:
-    out = np.empty((len(resolutions), len(seeds), graph.vcount()), dtype=np.int64)
+    out = np.empty((len(resolutions), len(seeds), graph.vcount()), dtype=np.int32)
     for r, res in enumerate(resolutions):
         for s, seed in enumerate(seeds):
             if leiden == "fast":
@@ -49,40 +49,63 @@ def _ensemble(graph, resolutions, seeds, leiden: str, n_iterations: int) -> np.n
     return out
 
 
-def _carve(ms: np.ndarray, rows: np.ndarray, cols: np.ndarray, w: np.ndarray, deg: np.ndarray,
+def _adjacency(n: int, rows: np.ndarray, cols: np.ndarray, w: np.ndarray):
+    """Symmetric CSR adjacency (indptr, neighbors, weights) and weighted degrees."""
+    src = np.concatenate([rows, cols])
+    dst = np.concatenate([cols, rows])
+    ww = np.concatenate([w, w])
+    order = np.argsort(src, kind="stable")
+    indptr = np.zeros(n + 1, dtype=np.int64)
+    np.cumsum(np.bincount(src, minlength=n), out=indptr[1:])
+    deg = np.bincount(src, weights=ww, minlength=n)
+    return indptr, dst[order].astype(np.int32), ww[order], deg
+
+
+def _carve(ms: np.ndarray, indptr: np.ndarray, nbr: np.ndarray, nw: np.ndarray, deg: np.ndarray,
            phi_max: float, min_size: int, resolutions) -> tuple[np.ndarray, list[dict]]:
     R, S, _ = ms.shape
     counts = [len(np.unique(ms[0, s])) for s in range(S)]
-    labels = ms[0, int(np.argsort(counts)[len(counts) // 2])].copy()  # coarsest level, median seed
+    labels = ms[0, int(np.argsort(counts)[len(counts) // 2])].astype(np.int64)  # coarsest, median seed
     next_label = labels.max() + 1
     carved: list[dict] = []
 
     def check(cells: np.ndarray) -> tuple[np.ndarray, float] | None:
+        """cells: indices of the candidate. Its part inside the host and φ(C | H), or None."""
         hosts = np.bincount(labels[cells])
         host = int(hosts.argmax())
-        host_mask = labels == host
-        in_host = cells & host_mask
-        if hosts[host] < _NESTED * cells.sum() or in_host.sum() > _PROPER * host_mask.sum():
+        host_size = int(np.count_nonzero(labels == host)) if hosts[host] else 0
+        if hosts[host] < _NESTED * len(cells):
             return None
-        rest = host_mask & ~in_host
-        cut = w[(in_host[rows] & rest[cols]) | (in_host[cols] & rest[rows])].sum()
-        return in_host, float(cut / deg[in_host].sum())
+        in_host = cells[labels[cells] == host]
+        if len(in_host) > _PROPER * host_size:
+            return None
+        # edges leaving C∩H: walk only C's own adjacency lists, O(vol(C)) instead of O(E)
+        starts, ends = indptr[in_host], indptr[in_host + 1]
+        lengths = ends - starts
+        pos = np.repeat(starts - np.cumsum(lengths) + lengths, lengths) + np.arange(lengths.sum())
+        nb, wt = nbr[pos], nw[pos]
+        member = np.zeros(len(labels), dtype=bool)
+        member[in_host] = True
+        rest = (labels[nb] == host) & ~member[nb]
+        return in_host, float(wt[rest].sum() / deg[in_host].sum())
 
     for r in range(1, R):
         scored = []
         for s in range(S):
             m = ms[r, s]
-            for c in np.flatnonzero(np.bincount(m) >= min_size):
-                hit = check(m == c)
+            order = np.argsort(m, kind="stable")
+            bounds = np.searchsorted(m[order], np.arange(m.max() + 2))
+            for c in np.flatnonzero(np.diff(bounds) >= min_size):
+                hit = check(order[bounds[c]:bounds[c + 1]])
                 if hit is not None and hit[1] <= phi_max:
                     scored.append((hit[1], s, int(c)))
         for _, s, c in sorted(scored):
-            hit = check(ms[r, s] == c)  # the hosts may have changed since scoring
+            hit = check(np.flatnonzero(ms[r, s] == c))  # the hosts may have changed since scoring
             if hit is None or hit[1] > phi_max:
                 continue
             labels[hit[0]] = next_label
             next_label += 1
-            carved.append({"resolution": resolutions[r], "seed_index": s, "cells": int(hit[0].sum()),
+            carved.append({"resolution": resolutions[r], "seed_index": s, "cells": int(len(hit[0])),
                            "phi": hit[1]})
     return np.unique(labels, return_inverse=True)[1].astype(np.int64), carved
 
@@ -137,18 +160,21 @@ def find_communities_multiscale(
     seeds = tuple(range(seeds)) if isinstance(seeds, int) else tuple(seeds)
     min_size = 2 * k if min_size is None else int(min_size)
     try:
-        import igraph as ig
+        import igraph  # noqa: F401  (fail before the expensive kNN, not after)
     except ImportError as exc:  # pragma: no cover - depends on the environment
         raise ImportError("find_communities_multiscale needs igraph: pip install costal-plus[leiden]") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     rows, cols, w = _ext._fuzzy_union(g.idx, reweight(g, weight))
-    rows, cols = np.asarray(rows, dtype=np.int64), np.asarray(cols, dtype=np.int64)
-    graph = ig.Graph(n=g.n, edges=np.column_stack([rows, cols]).tolist(), edge_attrs={"weight": w.tolist()})
-    deg = np.bincount(rows, weights=w, minlength=g.n) + np.bincount(cols, weights=w, minlength=g.n)
+    n = g.n
+    del g
+    graph = _igraph(n, rows, cols, w)
+    adjacency = _adjacency(n, rows, cols, w)
+    del rows, cols, w
 
     ms = _ensemble(graph, resolutions, seeds, leiden, n_iterations)
-    labels, carved = _carve(ms, rows, cols, np.asarray(w), deg, phi_max, min_size, resolutions)
+    del graph
+    labels, carved = _carve(ms, *adjacency, phi_max, min_size, resolutions)
     if not return_info:
         return labels
     return labels, {"phi_max": phi_max, "resolutions": resolutions, "seeds": seeds, "leiden": leiden,

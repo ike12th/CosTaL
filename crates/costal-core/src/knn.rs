@@ -482,13 +482,15 @@ fn run_blocked<S: Selector>(
             },
         );
 
-    // Working order → original order
-    let mut idx = vec![0u32; n * k];
-    let mut cos = vec![0.0f64; n * k];
-    for (w, &orig) in perm.iter().enumerate() {
-        let o = orig as usize;
-        idx[o * k..(o + 1) * k].copy_from_slice(&w_idx[w * k..(w + 1) * k]);
-        cos[o * k..(o + 1) * k].copy_from_slice(&w_cos[w * k..(w + 1) * k]);
+    // The working copy of X is the largest buffer (n × d); free it before reordering the output
+    drop(sel);
+    drop(xs);
+
+    // Working order → original order, in place (no second n × k buffer)
+    let mut idx = w_idx;
+    let mut cos = w_cos;
+    if p.sort_by_norm {
+        unpermute_rows(&mut idx, &mut cos, &perm, k);
     }
     let stats = KnnStats {
         fallback_rows: fallbacks.into_inner(),
@@ -507,6 +509,37 @@ fn run_blocked<S: Selector>(
         },
         stats,
     )
+}
+
+/// Move row `w` of `idx` / `cos` (rows of `k`) to row `perm[w]`, in place, by following the
+/// permutation's cycles: one bit of bookkeeping per row instead of a second copy of the output.
+fn unpermute_rows(idx: &mut [u32], cos: &mut [f64], perm: &[u32], k: usize) {
+    let n = perm.len();
+    let mut done = vec![false; n];
+    let mut tmp_idx = vec![0u32; k];
+    let mut tmp_cos = vec![0.0f64; k];
+    for start in 0..n {
+        if done[start] {
+            continue;
+        }
+        done[start] = true;
+        if perm[start] as usize == start {
+            continue;
+        }
+        tmp_idx.copy_from_slice(&idx[start * k..(start + 1) * k]);
+        tmp_cos.copy_from_slice(&cos[start * k..(start + 1) * k]);
+        let mut cur = start;
+        loop {
+            let dst = perm[cur] as usize;
+            idx[dst * k..(dst + 1) * k].swap_with_slice(&mut tmp_idx);
+            cos[dst * k..(dst + 1) * k].swap_with_slice(&mut tmp_cos);
+            if dst == start {
+                break;
+            }
+            done[dst] = true;
+            cur = dst;
+        }
+    }
 }
 
 /// Row-block height and column-block width.

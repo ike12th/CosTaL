@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from ._api import CostalWarning
+from ._api import CostalWarning, _row_chunks
 
 __all__ = ["COFACTORS", "PRESETS", "preprocess"]
 
@@ -68,7 +68,14 @@ def preprocess(
             raise ValueError("preset applies to platform='scrnaseq' only")
         if hasattr(X, "toarray"):
             X = X.toarray()
-        out = np.arcsinh(np.asarray(X, dtype=np.float64) / COFACTORS[platform]).astype(np.float32)
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError(f"X must be a 2-D matrix, got {X.ndim} dimensions")
+        # arcsinh in f64 then rounded to f32, row chunk by row chunk: the output is the only full-size
+        # array (values identical to the one-shot version)
+        out = np.empty(X.shape, dtype=np.float32)
+        for a, b in _row_chunks(*X.shape):
+            out[a:b] = np.arcsinh(X[a:b].astype(np.float64) / COFACTORS[platform])
         return (out, np.arange(out.shape[0])) if return_cells else out
     if platform != "scrnaseq":
         raise ValueError(f"platform must be one of {(*COFACTORS, 'scrnaseq')}, got {platform!r}")

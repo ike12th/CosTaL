@@ -22,8 +22,8 @@ type KnnArrays<'py> = (
 );
 
 type EdgeArrays<'py> = (
-    Bound<'py, PyArray1<i64>>,
-    Bound<'py, PyArray1<i64>>,
+    Bound<'py, PyArray1<i32>>,
+    Bound<'py, PyArray1<i32>>,
     Bound<'py, PyArray1<f64>>,
 );
 
@@ -48,7 +48,8 @@ fn with_threads<T: Send>(n_threads: Option<usize>, f: impl FnOnce() -> T + Send)
 }
 
 fn knn_to_py(py: Python<'_>, knn: Knn) -> PyResult<KnnArrays<'_>> {
-    let idx: Vec<i32> = knn.idx.iter().map(|&j| j as i32).collect();
+    // u32 → i32 reuses the allocation (same layout; n ≤ i32::MAX was checked on the way in)
+    let idx: Vec<i32> = knn.idx.into_iter().map(|j| j as i32).collect();
     Ok((
         Array2::from_shape_vec((knn.n, knn.k), idx)
             .map_err(value_err)?
@@ -60,8 +61,8 @@ fn knn_to_py(py: Python<'_>, knn: Knn) -> PyResult<KnnArrays<'_>> {
     ))
 }
 
-/// Validate an (n, k) int32 neighbor matrix and convert it to u32.
-fn neighbours(idx: &PyReadonlyArray2<'_, i32>) -> PyResult<(usize, usize, Vec<u32>)> {
+/// Validate an (n, k) int32 neighbor matrix and view it as u32, without copying.
+fn neighbours<'a>(idx: &'a PyReadonlyArray2<'_, i32>) -> PyResult<(usize, usize, &'a [u32])> {
     let (n, k) = idx.as_array().dim();
     let flat = idx.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     if let Some(&bad) = flat.iter().find(|&&j| j < 0 || j as usize >= n) {
@@ -69,7 +70,10 @@ fn neighbours(idx: &PyReadonlyArray2<'_, i32>) -> PyResult<(usize, usize, Vec<u3
             "neighbor index {bad} out of range (n={n})"
         )));
     }
-    Ok((n, k, flat.iter().map(|&j| j as u32).collect()))
+    // SAFETY: i32 and u32 have the same size and alignment, and every value was just checked to be
+    // non-negative, so each one reads back as the same number.
+    let view = unsafe { std::slice::from_raw_parts(flat.as_ptr().cast::<u32>(), flat.len()) };
+    Ok((n, k, view))
 }
 
 /// Skeleton self-check: returns a greeting with the core version.
@@ -202,7 +206,7 @@ fn _reweight<'py>(
     }
     let cos = cos.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
     let norms = norms.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
-    let out = py.detach(|| weight::reweight(n, k, &idx, cos, norms, w));
+    let out = py.detach(|| weight::reweight(n, k, idx, cos, norms, w));
     Ok(Array2::from_shape_vec((n, k), out)
         .map_err(value_err)?
         .into_pyarray(py))
@@ -221,11 +225,14 @@ fn _fuzzy_union<'py>(
         return Err(value_err("shapes of idx and w do not match"));
     }
     let w = w.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
-    let e = py.detach(|| graph::fuzzy_union(n, k, &idx, w));
-    let to_i64 = |v: Vec<u32>| Array1::from_iter(v.into_iter().map(i64::from)).into_pyarray(py);
+    let e = py.detach(|| graph::fuzzy_union(n, k, idx, w));
+    // u32 → i32 in place (indices < n ≤ i32::MAX)
+    let to_i32 = |v: Vec<u32>| {
+        Array1::from_vec(v.into_iter().map(|x| x as i32).collect::<Vec<i32>>()).into_pyarray(py)
+    };
     Ok((
-        to_i64(e.rows),
-        to_i64(e.cols),
+        to_i32(e.rows),
+        to_i32(e.cols),
         Array1::from_vec(e.weights).into_pyarray(py),
     ))
 }

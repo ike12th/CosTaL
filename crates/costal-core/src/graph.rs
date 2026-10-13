@@ -34,11 +34,8 @@ pub fn fuzzy_union(n: usize, k: usize, idx: &[u32], w: &[f64]) -> Edges {
     }
     e.par_sort_unstable_by_key(|p| p.0);
 
-    let mut out = Edges {
-        rows: Vec::with_capacity(e.len()),
-        cols: Vec::with_capacity(e.len()),
-        weights: Vec::with_capacity(e.len()),
-    };
+    // Combine the two directions of each pair in place: e[..m] ends up holding one entry per edge
+    let mut m = 0;
     let mut t = 0;
     while t < e.len() {
         let (key, a) = e[t];
@@ -55,11 +52,18 @@ pub fn fuzzy_union(n: usize, k: usize, idx: &[u32], w: &[f64]) -> Edges {
             a
         };
         if v != 0.0 {
-            out.rows.push((key >> 32) as u32);
-            out.cols.push(key as u32);
-            out.weights.push(v);
+            e[m] = (key, v);
+            m += 1;
         }
     }
+    e.truncate(m);
+
+    let out = Edges {
+        rows: e.iter().map(|&(key, _)| (key >> 32) as u32).collect(),
+        cols: e.iter().map(|&(key, _)| key as u32).collect(),
+        weights: e.iter().map(|&(_, v)| v).collect(),
+    };
+    drop(e);
     out
 }
 
