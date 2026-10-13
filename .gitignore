@@ -21,6 +21,9 @@ bench/out/*
 !bench/out/stage_c2.json
 !bench/out/stage_c3.json
 !bench/out/rare_populations.json
+!bench/out/small_datasets.json
+!bench/out/local_scaling.json
+!bench/out/multiscale.json
 .venv-arm64/
 bench/data/
 .DS_Store

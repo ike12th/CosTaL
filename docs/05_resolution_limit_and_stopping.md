@@ -148,6 +148,51 @@ minute with igraph.
 Moreover, these Leiden runs are independent of each other and share the same read-only graph, so **they can run concurrently**, with speedup close to the core count
 (for caveats about performance/efficiency cores see docs/06 §4). kNN is still computed only once, and is still exact.
 
+> **First attempt (2026-10-13): works on Levine_32, does not generalize.** `bench/multiscale.py`,
+> numbers in `bench/out/multiscale.json`. Leiden (leidenalg, 2 iterations) at 11 resolutions 0.1–3.2
+> (ratio √2) × 4 seeds on the published graph. A cluster's **stability** is the mean best-match
+> Jaccard against every other partition at the same and adjacent resolutions. The **base** is the
+> resolution whose seeds agree most (its medoid seed); going from coarse to fine, a cluster with
+> stability ≥ τ and ≥ 2k cells is **carved out** of the current cluster that hosts it, if nested in it
+> (≥ 80%) and a proper part of it (≤ 90%). No labels are used until scoring. The **oracle** row takes
+> each population's F1 at its own best single resolution — what a perfect multi-scale selection could
+> reach.
+>
+> | Data | Partition | ARI | Clusters | F1, 5 rarest | F1, 5 largest | F1, mean |
+> |---|---|---:|---:|---:|---:|---:|
+> | Levine_32 | single, best ARI (0.283) | 0.966 | 10.5 | 0.276 | 0.983 | 0.644 |
+> | | single, best mean F1 (0.8) | 0.765 | 18.8 | 0.450 | 0.887 | 0.688 |
+> | | **multiscale τ = 0.85** | **0.952** | 19 | **0.614** | **0.978** | **0.773** |
+> | | multiscale τ = 0.9 | 0.967 | 14 | 0.489 | 0.984 | 0.737 |
+> | | oracle | | | 0.607 | 0.985 | 0.812 |
+> | Levine_13 | single, best ARI (1.131) | 0.827 | 19.0 | 0.111 | 0.925 | 0.487 |
+> | | multiscale τ = 0.85 / 0.9 | 0.710 / 0.717 | 19 / 15 | 0.181 / 0.054 | 0.814 / 0.817 | 0.439 / 0.408 |
+> | | oracle | | | 0.181 | 0.941 | 0.536 |
+> | GSE84133 | single, best mean F1 (1.131) | 0.815 | 11.2 | 0.280 | 0.900 | 0.651 |
+> | | multiscale τ = 0.9 | 0.849 | 12 | 0.280 | 0.904 | 0.652 |
+> | GSE74672 | single, best mean F1 (0.8) | 0.468 | 14.5 | 0.767 | 0.755 | 0.748 |
+> | | multiscale τ = 0.9 | 0.483 | 22 | 0.694 | 0.730 | 0.710 |
+>
+> - **On Levine_32 it does what the oracle promised**: at τ = 0.85 the 5 rarest populations reach the
+>   oracle's F1 (0.61 vs 0.28 at the best-ARI resolution) while the 5 largest and ARI barely move —
+>   no single resolution comes close on the rare populations without losing ≥ 0.1 F1 on the large ones.
+> - **It does not transfer.** On GSE84133 it lands on the single-resolution trade-off curve (its rare
+>   types have 1–14 cells, below the 2k carving floor, and the oracle shows no single resolution finds
+>   them either); on GSE74672 it is below the curve — also against the finer `level2` neuron labels
+>   (69 classes: multiscale ARI 0.39 at τ = 0.9 vs 0.48 for the best single resolution), so the extra
+>   clusters are not hidden subtypes. On Levine_13 the base selection fails: seeds agree only 0.62–0.75
+>   at *every* resolution (0.94–0.98 on Levine_32), so "the most reproducible resolution" (0.2, ARI
+>   0.59) is no signal, and everything built on it inherits the bad start.
+> - **τ is not transferable**: on Levine_32 the result jumps from ARI 0.60 to 0.95 between τ = 0.8 and
+>   0.85 (fragments of large populations with stability 0.8–0.85 stop being carved); on the other sets
+>   no τ beats the best single resolution on more than one summary. τ = 0.85 / 0.9 was picked on
+>   Levine_32 and then applied unchanged; the other three sets are honest held-out checks.
+> - **Not shipped.** Two diagnosed failure points for a next attempt: the base selection (use the
+>   stability curve's shape, not its maximum, or skip the base and select clusters globally), and τ
+>   (calibrate it against the dataset's own stability distribution, e.g. against the stability of
+>   splits of clusters that are themselves stable). Any next version must be fixed on one dataset and
+>   checked on the others the same way.
+
 ### 2.4 Ranking
 
 | | What | Cost | Why it ranks here |
