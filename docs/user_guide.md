@@ -36,7 +36,7 @@ This installs everything CosTaL 1.0 uses:
 |---|---|
 | Leiden (`find_communities`, `find_communities_multiscale`) | igraph, leidenalg |
 | scRNA-seq preprocessing (`preprocess(..., "scrnaseq")`) | scanpy, scikit-misc |
-| Reading CSV / FCS / h5ad in `costal cluster` | pandas, fcsparser, anndata |
+| Reading CSV / h5ad in `costal cluster` (FCS is read by `CosTaL.read_fcs` itself) | pandas, anndata |
 | `CosTaL.legacy.return_scores` | scikit-learn, scipy |
 
 On Python 3.9, numpy is held below 2.0, because scikit-misc's last release for 3.9 needs numpy 1.x.
@@ -52,11 +52,11 @@ prints the version, the platform and the matrix-multiplication backend (`acceler
 
 **Platforms.** Wheels are built for macOS (Apple silicon and Intel), Linux (x86-64 and aarch64, glibc
 and musl) and Windows (x64 and arm64). One wheel per platform covers CPython 3.9 and later (abi3).
-On Windows on Arm, leidenalg, scanpy and scikit-misc publish no wheels yet, so they are skipped
-there: everything works except `leiden="paper"` (use `leiden="fast"`) and scRNA-seq preprocessing.
-On musl-based Linux (Alpine), several scientific dependencies have no wheels; install with
-`pip install --no-deps CosTaL` and then the dependencies your workflow needs
-(`numpy igraph leidenalg` for cytometry).
+On Windows on Arm, leidenalg, scanpy, scikit-misc and anndata publish no wheels yet, so they are
+skipped there: everything works except `leiden="paper"` (use `leiden="fast"`), scRNA-seq
+preprocessing and `.h5ad` input. On musl-based Linux (Alpine), several scientific dependencies have
+no wheels; install with `pip install --no-deps CosTaL` and then the dependencies your workflow needs
+(`numpy scipy pandas scikit-learn igraph leidenalg` for cytometry).
 
 **From source** (any platform with a Rust toolchain):
 
@@ -77,10 +77,9 @@ pip install maturin && pip install .
 ### Cytometry
 
 ```python
-import fcsparser
 import CosTaL
 
-_, df = fcsparser.parse("cells.fcs", reformat_meta=True)
+_, df = CosTaL.read_fcs("cells.fcs")
 markers = [c for c in df.columns if c not in ("Time", "Event_length", "label")]
 
 X = CosTaL.preprocess(df[markers], "mass")      # arcsinh(x/5); "flow": x/150; "spectral flow": x/6000
@@ -225,6 +224,13 @@ The original `pp()` (section 3). Returns a dense float32 matrix, plus the kept c
 | `n_top_genes` | scRNA-seq: number of highly variable genes (2000 in the paper) |
 | `return_cells` | also return the indices of the cells kept |
 | `compat` | `"paper"` refuses anything but the original preprocessing |
+
+### `read_fcs(path, *, channel_naming="$PnS", data_set=0, dtype="float32")`
+
+Reads an FCS 2.0 / 3.0 / 3.1 list-mode file and returns `(meta, data)`: the TEXT keywords and a pandas
+DataFrame, events × channels, named by `$PnS` (falling back to `$PnN` where `$PnS` is missing, or for
+all channels when the `$PnS` names repeat). Float, double and integer data in either byte order, with
+`$PnR` bit masks on integers. It returns what `fcsparser.parse(path)` returns, which it replaces.
 
 ### `find_communities(X, k=10, *, select="cosine", weight="tanimoto", normalize=None, resolution=0.8, leiden="paper", n_iterations=None, seed=None, compat=None, n_threads=None)`
 

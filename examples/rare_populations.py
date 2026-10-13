@@ -1,7 +1,7 @@
 """Rare populations: one resolution vs find_communities_multiscale, and how to read its report.
 
     python examples/rare_populations.py                    # synthetic data
-    python examples/rare_populations.py cells.fcs flow     # an FCS file (pip install fcsparser)
+    python examples/rare_populations.py cells.fcs flow     # an FCS file
 
 Synthetic populations this distinct are easy for any resolution, so here both runs find the rare one;
 the resolution limit shows on real data, where single resolutions lose rare populations that the
@@ -40,9 +40,7 @@ def rare_f1(truth, labels, population=5):
 
 def main(argv, n=20000):
     if len(argv) > 1:
-        import fcsparser
-
-        _, df = fcsparser.parse(argv[1], reformat_meta=True)
+        _, df = CosTaL.read_fcs(argv[1])
         raw, truth = df[[c for c in df.columns if c not in {"Time", "Event_length", "label"}]], None
         platform = argv[2] if len(argv) > 2 else "mass"
     else:

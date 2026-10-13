@@ -1,7 +1,7 @@
 """Cluster cytometry data with the published CosTaL.
 
     python examples/cytometry.py                      # synthetic data
-    python examples/cytometry.py cells.fcs mass       # an FCS file (pip install fcsparser); platform mass/flow/"spectral flow"
+    python examples/cytometry.py cells.fcs mass       # an FCS file; platform mass/flow/"spectral flow"
 """
 
 import sys
@@ -21,9 +21,7 @@ def synthetic(n=3000, markers=12, populations=6, seed=0):
 
 def main(argv):
     if len(argv) > 1:
-        import fcsparser
-
-        _, df = fcsparser.parse(argv[1], reformat_meta=True)
+        _, df = CosTaL.read_fcs(argv[1])
         drop = {"Time", "Event_length", "Cell_length", "label"}
         raw, truth = df[[c for c in df.columns if c not in drop]], None
         platform = argv[2] if len(argv) > 2 else "mass"

@@ -36,6 +36,15 @@ arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `
 - `knn()`, `reweight()`, `truncate()`, `build_graph()`: the pipeline in steps, so the kNN is computed
   once for many weights, k and resolutions.
 
+### Installation and input
+
+- `pip install CosTaL` installs everything the package uses (igraph, leidenalg, scanpy, scikit-misc,
+  anndata, pandas, scikit-learn, scipy); no extras to choose. On Windows on Arm, the packages without
+  wheels there are skipped.
+- `read_fcs()`: FCS 2.0 / 3.0 / 3.1 files, read value for value as fcsparser reads them (checked on the
+  Levine files and on synthetic float, double and masked-integer files in both byte orders). It
+  replaces the fcsparser dependency, whose current release pins numpy below 2.
+
 ### Command line
 
 - `costal cluster`: CSV/TSV, FCS, `.npy` or `.h5ad` in, one label per cell out, with the original

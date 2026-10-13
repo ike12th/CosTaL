@@ -29,10 +29,11 @@ costal info          # confirms the build
 ```
 
 One command installs everything it uses: igraph and leidenalg (Leiden), scanpy and scikit-misc
-(scRNA-seq preprocessing), pandas, fcsparser and anndata (file readers), scikit-learn and scipy.
+(scRNA-seq preprocessing), pandas and anndata (file readers), scikit-learn and scipy; FCS files are
+read by CosTaL itself (`CosTaL.read_fcs`).
 Python ≥ 3.9 on macOS (Apple silicon, Intel), Linux (x86-64, aarch64) and Windows (x64, arm64);
-on Windows on Arm, leidenalg, scanpy and scikit-misc have no wheels yet, so `leiden="fast"` and the
-cytometry workflow work there. Building from source: [docs/development.md](docs/development.md).
+on Windows on Arm, leidenalg, scanpy, scikit-misc and anndata have no wheels yet, so `leiden="fast"`
+and the cytometry workflow work there. Building from source: [docs/development.md](docs/development.md).
 
 ## Use
 

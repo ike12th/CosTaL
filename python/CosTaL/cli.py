@@ -5,7 +5,7 @@
     costal info
 
 Inputs: CSV / TSV (cells × features, header row; non-numeric columns are dropped), FCS, ``.npy``,
-and ``.h5ad`` (its ``.X``); the readers (pandas, fcsparser, anndata) are installed with CosTaL.
+and ``.h5ad`` (its ``.X``). FCS is read by ``CosTaL.read_fcs``; pandas and anndata come with CosTaL.
 The output has one row per input cell: its index and its cluster (``-1`` for a cell that scRNA-seq
 preprocessing dropped).
 """
@@ -38,15 +38,9 @@ def _read(path: Path, columns: list[str] | None, exclude: list[str]):
         ad = anndata.read_h5ad(path)
         x, names = ad.X, list(map(str, ad.var_names))
     elif suffix == ".fcs":
-        try:
-            import fcsparser
-        except ImportError as exc:  # pragma: no cover - depends on the environment
-            raise SystemExit("reading .fcs needs fcsparser: pip install fcsparser") from exc
-        import warnings
+        from ._fcs import read_fcs
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            _, df = fcsparser.parse(str(path), reformat_meta=True)
+        _, df = read_fcs(path)
         x, names = df, list(df.columns)
     elif suffix in (".csv", ".tsv", ".txt", ".csv.gz", ".tsv.gz", ".txt.gz"):
         try:

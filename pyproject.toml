@@ -23,26 +23,27 @@ classifiers = [
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-# Everything the package does is installed with it. Windows on Arm has no wheels for leidenalg,
-# scanpy's numba or scikit-misc yet: there the kNN, graph and leiden="fast" work and those are skipped.
+# Everything the package does is installed with it. Windows on Arm has no wheels yet for leidenalg,
+# scanpy's numba, scikit-misc or anndata's numcodecs: there the kNN, graph, leiden="fast" and FCS / CSV
+# input work and those packages are skipped. FCS files are read by CosTaL itself (fcsparser pins
+# numpy < 2).
 dependencies = [
     "numpy>=1.21; python_version >= '3.10'",
     # scikit-misc 0.3, the last release for Python 3.9, is built against numpy 1.x
     "numpy>=1.21,<2; python_version < '3.10'",
     "scipy>=1.7",
+    "pandas>=1.3",
+    "scikit-learn>=1.0",
     "igraph>=0.10",
     "leidenalg>=0.8; platform_system != 'Windows' or platform_machine != 'ARM64'",
     "scanpy>=1.9; platform_system != 'Windows' or platform_machine != 'ARM64'",
     "scikit-misc>=0.2; platform_system != 'Windows' or platform_machine != 'ARM64'",
-    "anndata>=0.8",
-    "pandas>=1.3",
-    "fcsparser>=0.2",
-    "scikit-learn>=1.0",
+    "anndata>=0.8; platform_system != 'Windows' or platform_machine != 'ARM64'",
 ]
 
 [project.optional-dependencies]
 # benchmarks under bench/ and development; not needed by users
-bench = ["hnswlib"]
+bench = ["hnswlib", "fcsparser"]
 dev = ["pytest", "maturin>=1.7"]
 
 [project.urls]

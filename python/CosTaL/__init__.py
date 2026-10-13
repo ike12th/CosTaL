@@ -30,6 +30,7 @@ from ._costal import (
     row_l2_norms,
     tile_budget_bytes,
 )
+from ._fcs import read_fcs
 from ._multiscale import find_communities_multiscale
 from ._preprocess import preprocess
 
@@ -65,6 +66,7 @@ __all__ = [
     "normalize_arcsinh",
     "pp",
     "preprocess",
+    "read_fcs",
     "return_Ff1_score",
     "return_Hf1_score",
     "return_scores",
