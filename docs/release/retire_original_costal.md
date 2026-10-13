@@ -11,10 +11,10 @@ this repository moves or is renamed), commit, then *Settings → Archive this re
 keeps every link and the history readable and marks the old code as no longer maintained.
 
 ```markdown
-# CosTaL — now developed at https://github.com/ike12th/costal-plus
+# CosTaL — now developed at https://github.com/ike12th/CosTaL
 
 **This repository holds CosTaL 1.0 and is archived.** CosTaL 2.0 and later are developed at
-https://github.com/ike12th/costal-plus.
+https://github.com/ike12th/CosTaL.
 
     pip install --upgrade CosTaL
 

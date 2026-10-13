@@ -540,7 +540,7 @@ that another combination is better, people who `pip install` should get the bett
 locked behind a flag forever. But with two hard constraints:
 
 1. **Changing a default requires a major-version bump** (0.x → 1.0 → 2.0). When someone writes
-   "we used costal-plus v1.2", the major version alone is enough to determine the default semantics.
+   "we used CosTaL v2.1", the major version alone is enough to determine the default semantics.
 2. **`compat="paper"` exists from day one and is never removed.** The reproduction path is explicit and never breaks.
 
 So from day one we provide:
