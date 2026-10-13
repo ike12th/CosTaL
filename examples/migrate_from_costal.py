@@ -1,4 +1,4 @@
-"""Scripts written for CosTaL 0.0.2 run unchanged on CosTaL 1.0.
+"""Scripts written for CosTaL 1.0 run unchanged on CosTaL 2.0.
 
     python examples/migrate_from_costal.py
 """
@@ -11,14 +11,14 @@ from cytometry import synthetic
 
 def main(argv):
     raw, truth = synthetic()
-    # a CosTaL 0.0.2 call, unchanged: preprocessing inside, a list of labels back
+    # a CosTaL 1.0 call, unchanged: preprocessing inside, a list of labels back
     labels = CosTaL.find_communities(raw, pp_method="mass", nbr_num=10, resolution=0.8, seed=0)
     scores = CosTaL.return_scores(truth, labels)
-    print(f"0.0.2 call: {max(labels) + 1} clusters; AMI {scores[0]:.3f}, ARI {scores[1]:.3f}, FlowCAP F1 {scores[2]:.3f}")
+    print(f"1.0 call: {max(labels) + 1} clusters; AMI {scores[0]:.3f}, ARI {scores[1]:.3f}, FlowCAP F1 {scores[2]:.3f}")
 
-    # the same with the 1.0 interface: preprocessing as its own step, a numpy array back
+    # the same with the 2.0 interface: preprocessing as its own step, a numpy array back
     new = CosTaL.find_communities(CosTaL.preprocess(raw, "mass"), k=10, resolution=0.8, seed=0)
-    print(f"1.0 call:   identical labels: {new.tolist() == labels}")
+    print(f"2.0 call:   identical labels: {new.tolist() == labels}")
     return labels
 
 

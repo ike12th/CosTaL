@@ -1,9 +1,9 @@
-"""The CosTaL 0.0.2 interface, kept in CosTaL 1.0 so that 0.0.2 scripts run unchanged.
+"""The CosTaL 1.0 interface, kept in CosTaL 2.0 so that 1.0 scripts run unchanged.
 
-``pp``, ``clustering`` and the 0.0.2 form of ``find_communities`` keep their signatures and return a
+``pp``, ``clustering`` and the 1.0 form of ``find_communities`` keep their signatures and return a
 Python list of labels; the evaluation helpers of ``CosTaL.descriptions`` (``return_scores`` and
-friends) are ported as they were. What runs underneath is the 1.0 implementation: the exact kNN of
-the published method on every platform (docs/user_guide.md §11 lists the differences from 0.0.2).
+friends) are ported as they were. What runs underneath is the 2.0 implementation: the exact kNN of
+the published method on every platform (docs/user_guide.md §11 lists the differences from 1.0).
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def find_communities(X: Any, pp_method: str | None = None, method: str = "tani",
 def clustering(X: Any, nbr_num: int = 10, seed: int | None = None, local: bool = False, method: str = "tani",
                pp_method: str | None = None, **kwargs: Any) -> list:
     """CosTaL's ``clustering``. The original ran ``find_communities`` on Linux and a brute-force path
-    on other systems; CosTaL 1.0 runs the published (Linux) path everywhere."""
+    on other systems; CosTaL 2.0 runs the published (Linux) path everywhere."""
     return find_communities(X, pp_method=pp_method, method=method, nbr_num=nbr_num, seed=seed, local=local,
                             **kwargs)
 

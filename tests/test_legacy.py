@@ -1,4 +1,4 @@
-"""CosTaL 0.0.2 code keeps working on 1.0: the same names, arguments, import paths and list results."""
+"""CosTaL 1.0 code keeps working on 2.0: the same names, arguments, import paths and list results."""
 
 import importlib.util
 from pathlib import Path
@@ -18,18 +18,18 @@ def cells(seed=0, n=300, d=6):
     return np.abs(centers[rng.integers(0, 3, n)] + rng.normal(0, 30, (n, d)))
 
 
-def test_find_communities_002_call_is_the_published_method():
+def test_find_communities_v1_call_is_the_published_method():
     pytest.importorskip("leidenalg")
     x = cells()
     got = CosTaL.find_communities(x, pp_method="mass", seed=0)
     assert isinstance(got, list) and len(got) == len(x)
     assert got == CosTaL.find_communities(CosTaL.preprocess(x, "mass"), seed=0).tolist()
-    assert CosTaL.find_communities(x, "mass", seed=0) == got  # 0.0.2's positional pp_method
+    assert CosTaL.find_communities(x, "mass", seed=0) == got  # 1.0's positional pp_method
     assert CosTaL.clustering(x, pp_method="mass", seed=0) == got
     cosine = CosTaL.find_communities(x, pp_method="mass", method="cosine", nbr_num=10, seed=0)
     assert cosine == CosTaL.find_communities(CosTaL.preprocess(x, "mass"), weight="cosine", seed=0).tolist()
     accepted = CosTaL.find_communities(x, pp_method="mass", seed=0, verbose=True, keep_temp_files=True, temp_name="t")
-    assert accepted == got  # 0.0.2 housekeeping arguments are accepted and have nothing to do
+    assert accepted == got  # 1.0 housekeeping arguments are accepted and have nothing to do
 
 
 def test_new_call_returns_an_array():
@@ -57,12 +57,12 @@ def test_other_partition_types_and_unsupported_options():
         CosTaL.find_communities(x, method="euclid")
 
 
-def test_import_paths_of_002():
+def test_import_paths_of_v1():
     from CosTaL.clustering import clustering, find_communities, normalize_arcsinh, pp
     from CosTaL.descriptions import return_scores
 
     assert find_communities is CosTaL.find_communities and clustering is CosTaL.clustering
-    assert callable(CosTaL.clustering)  # as in 0.0.2, the function shadows the submodule's name
+    assert callable(CosTaL.clustering)  # as in 1.0, the function shadows the submodule's name
     assert return_scores is CosTaL.return_scores
     x = cells()
     np.testing.assert_array_equal(pp(x, "mass"), CosTaL.preprocess(x, "mass"))
@@ -75,15 +75,15 @@ def original_descriptions():
     pytest.importorskip("sklearn")
     pytest.importorskip("scipy")
     if not ORIGINAL_DESCRIPTIONS.exists():  # pragma: no cover
-        pytest.skip("the 0.0.2 source is not in bench/reference")
-    spec = importlib.util.spec_from_file_location("costal_002_descriptions", ORIGINAL_DESCRIPTIONS)
+        pytest.skip("the 1.0 source is not in bench/reference")
+    spec = importlib.util.spec_from_file_location("costal_v1_descriptions", ORIGINAL_DESCRIPTIONS)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
-def test_scores_match_002(seed):
+def test_scores_match_v1(seed):
     orig = original_descriptions()
     rng = np.random.default_rng(seed)
     ytrue = rng.integers(0, 6, 400).astype(float)

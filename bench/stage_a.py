@@ -181,7 +181,7 @@ def cmd_speed() -> None:
 
 def original_clustering():
     """The original CosTaL clustering module (the 0.0.2.4 source in bench/reference), loaded under its
-    own name next to CosTaL 1.0 (bench/original.py)."""
+    own name next to CosTaL 2.0 (bench/original.py)."""
     from original import clustering  # noqa: PLC0415
 
     return clustering()

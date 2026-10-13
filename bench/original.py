@@ -1,8 +1,8 @@
 """The original CosTaL 0.0.2.4 source (bench/reference), loaded under its own module name.
 
-Both the 0.0.2 package and the 1.0 package are called ``CosTaL``, so ``import CosTaL.clustering`` can
+Both the 1.0 package and the 2.0 package are called ``CosTaL``, so ``import CosTaL.clustering`` can
 only ever reach one of them in a process. Its ``clustering.py`` has no package-internal imports, so it
-loads on its own as ``costal_002_clustering`` and sits next to CosTaL 1.0.
+loads on its own as ``costal_002_clustering`` and sits next to CosTaL 2.0.
 """
 
 from __future__ import annotations

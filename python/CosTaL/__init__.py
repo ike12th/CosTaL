@@ -15,7 +15,7 @@ or step by step::
 
     rows, cols, w = CosTaL.build_graph(X, k=10)
 
-CosTaL 0.0.2 code keeps working: ``CosTaL.find_communities(X, pp_method="mass", nbr_num=10)``,
+CosTaL 1.0 code keeps working: ``CosTaL.find_communities(X, pp_method="mass", nbr_num=10)``,
 ``CosTaL.clustering``, ``CosTaL.pp``, ``CosTaL.return_scores`` and ``from CosTaL.clustering import …``
 behave as they did (docs/user_guide.md §11).
 """
@@ -34,10 +34,10 @@ from ._fcs import read_fcs
 from ._multiscale import find_communities_multiscale
 from ._preprocess import preprocess
 
-# The 0.0.2 interface. As in 0.0.2, importing the `clustering` submodule and then its `clustering`
+# The 1.0 interface. As in 1.0, importing the `clustering` submodule and then its `clustering`
 # function leaves `CosTaL.clustering` bound to the function, while `from CosTaL.clustering import …`
 # still finds the submodule.
-from .clustering import clustering, normalize_arcsinh, pp  # noqa: E402  (after the 1.0 API on purpose)
+from .clustering import clustering, normalize_arcsinh, pp  # noqa: E402  (after the 2.0 API on purpose)
 from .descriptions import (  # noqa: E402
     calculate_sparsity,
     get_f1_matrix,

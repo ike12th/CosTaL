@@ -19,15 +19,15 @@ and irreversible: they are done by the maintainer, never by an automated job on 
 - [ ] Actions → `CI` → *Run workflow* with `all_os` ticked: Linux, macOS, Windows green.
 - [ ] Actions → `wheels` → *Run workflow*: all 8 wheels and the sdist build, and every native wheel
       installs and passes its tests on its runner. Download the artifact `wheels-*` to inspect.
-      (1.0.0, run 38436177748: all green; 49 passed / 4 skipped on macOS arm64, Linux x86-64 and
-      Windows x64 — the skips are the scanpy tests; on Windows arm64 the igraph/leidenalg tests skip
-      because those packages have no wheels there.)
+      (Run 38471935477, before the renumbering to 2.0.0: all green; 63 passed on macOS arm64,
+      Linux x86-64 and Windows x64; 52 passed / 11 skipped on Windows arm64, where leidenalg and
+      scanpy have no wheels.)
 
 ## 3. Tag
 
 ```bash
-git tag -a v1.0.0 -m "CosTaL 1.0.0"
-git push origin v1.0.0
+git tag -a v2.0.0 -m "CosTaL 2.0.0"
+git push origin v2.0.0
 ```
 
 The tag re-runs `CI` (all platforms) and `wheels`.
@@ -50,6 +50,6 @@ pip install --upgrade CosTaL && costal info && python -c "import CosTaL; print(C
 Without trusted publishing: download the `wheels-*` artifacts into `dist/` and run
 `twine upload dist/*`.
 
-## 5. Point the 0.0.2 repository here
+## 5. Point the 1.0 repository here
 
 See [retire_original_costal.md](retire_original_costal.md).

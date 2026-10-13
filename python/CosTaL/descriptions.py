@@ -1,4 +1,4 @@
-"""CosTaL 0.0.2's ``CosTaL.descriptions`` module: the clustering-evaluation helpers."""
+"""CosTaL 1.0's ``CosTaL.descriptions`` module: the clustering-evaluation helpers."""
 
 from ._legacy import (
     calculate_sparsity,

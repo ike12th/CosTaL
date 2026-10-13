@@ -1,7 +1,8 @@
 # CosTaL+ Technical Plan (v0, 2026-09-16)
 
 > **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
-> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+> **CosTaL 2.0**, the next major version after CosTaL 1.0 (published on PyPI as 0.0.2.4). "CosTaL+" below
+> means CosTaL 2.0, and "the original" means CosTaL 1.0.
 
 > This document is a **plan**, not an implementation record. Every judgment states its basis; anything refuted by
 > measurement must be corrected as it is, and claims already disproven must not be kept.

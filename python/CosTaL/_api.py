@@ -330,7 +330,7 @@ _LEIDEN = {
 }
 
 
-# The keyword arguments of CosTaL 0.0.2's find_communities (docs/user_guide.md §11)
+# The keyword arguments of CosTaL 1.0's find_communities (docs/user_guide.md §11)
 _LEGACY_ARGS = ("pp_method", "method", "nbr_num", "partition_type", "local", "verbose",
                 "keep_temp_files", "temp_name")
 
@@ -365,10 +365,10 @@ def find_communities(
             draws from.
         compat: ``"paper"`` refuses any setting that departs from the published method.
 
-    CosTaL 0.0.2 calls keep working: with its arguments (``pp_method``, ``method``, ``nbr_num``,
+    CosTaL 1.0 calls keep working: with its arguments (``pp_method``, ``method``, ``nbr_num``,
     ``partition_type``, ``local``, ``verbose``, ``keep_temp_files``, ``temp_name``, or the
-    preprocessing platform as the second positional argument) this runs the 0.0.2 interface and
-    returns a list, as 0.0.2 did.
+    preprocessing platform as the second positional argument) this runs the 1.0 interface and
+    returns a list, as 1.0 did.
     """
     if isinstance(k, str) or legacy:
         unknown = sorted(set(legacy) - set(_LEGACY_ARGS))
@@ -378,10 +378,10 @@ def find_communities(
                      "leiden": (leiden, "paper"), "n_iterations": (n_iterations, None), "compat": (compat, None)}
         mixed = [name for name, (value, default) in new_style.items() if value != default]
         if mixed:
-            raise ValueError(f"find_communities(): {mixed} can't be combined with CosTaL 0.0.2's arguments "
+            raise ValueError(f"find_communities(): {mixed} can't be combined with CosTaL 1.0's arguments "
                              f"{sorted(legacy) or ['pp_method']}; use one interface or the other")
         if isinstance(k, str):
-            legacy.setdefault("pp_method", k)  # 0.0.2's second positional argument
+            legacy.setdefault("pp_method", k)  # 1.0's second positional argument
         elif k != 10:
             legacy.setdefault("nbr_num", k)
         from ._legacy import find_communities as find_communities_002

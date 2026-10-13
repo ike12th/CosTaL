@@ -1,7 +1,8 @@
 # CosTaL+ Architecture and Implementation Plan (v0, 2026-09-20)
 
 > **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
-> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+> **CosTaL 2.0**, the next major version after CosTaL 1.0 (published on PyPI as 0.0.2.4). "CosTaL+" below
+> means CosTaL 2.0, and "the original" means CosTaL 1.0.
 
 > Background: [docs/01](01_technical_plan.md) sets the direction; [docs/02](02_original_profile_report.md) has the measured numbers.
 > This document answers "**exactly how to build it, and in what order**".

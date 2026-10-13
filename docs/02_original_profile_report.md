@@ -1,7 +1,8 @@
 # Original CosTaL profile report (2026-09-16)
 
 > **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
-> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+> **CosTaL 2.0**, the next major version after CosTaL 1.0 (published on PyPI as 0.0.2.4). "CosTaL+" below
+> means CosTaL 2.0, and "the original" means CosTaL 1.0.
 
 docs/01 §1.1 left one prerequisite action: **first profile the existing Python version, and use numbers to confirm
 "there is only one bottleneck: kNN graph construction"; if that is refuted, change the docs**. These are those numbers.

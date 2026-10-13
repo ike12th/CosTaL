@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "CosTaL"
-version = "1.0.0"
+version = "2.0.0"
 description = "Fast, exact graph-based clustering for single-cell data: exact cosine kNN, Tanimoto edge weights, Leiden"
 readme = "README.md"
 license = "MIT"
@@ -51,7 +51,7 @@ Homepage = "https://github.com/ike12th/costal-plus"
 Documentation = "https://github.com/ike12th/costal-plus/blob/main/docs/user_guide.md"
 Changelog = "https://github.com/ike12th/costal-plus/blob/main/CHANGELOG.md"
 Issues = "https://github.com/ike12th/costal-plus/issues"
-"CosTaL 0.0.2 source" = "https://github.com/li000678/CosTaL"
+"CosTaL 1.0 source" = "https://github.com/li000678/CosTaL"
 Paper = "https://doi.org/10.1093/bib/bbad157"
 
 [project.scripts]

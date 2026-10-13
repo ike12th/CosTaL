@@ -7,16 +7,16 @@ scRNA-seq: an exact cosine kNN graph, Tanimoto edge weights, Leiden community de
 > algorithm for high-dimensional single-cell data analysis.* Briefings in Bioinformatics 24(3),
 > bbad157 (2023). https://doi.org/10.1093/bib/bbad157
 
-**CosTaL 1.0** rewrites CosTaL 0.0.2 with the kNN graph computed in Rust:
+**CosTaL 2.0** rewrites CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph computed in Rust:
 
-- **The published method's results.** With no options, CosTaL 1.0 is the published CosTaL: on nine
-  of the paper's datasets it finds the same neighbors as 0.0.2 for 100% of cells, and at the same
-  Leiden seed the same clusters on six; on the other three, 0.0.2's float32 rounding of the edge
+- **The published method's results.** With no options, CosTaL 2.0 is the published CosTaL: on nine
+  of the paper's datasets it finds the same neighbors as 1.0 for 100% of cells, and at the same
+  Leiden seed the same clusters on six; on the other three, 1.0's float32 rounding of the edge
   weights (≤ 6×10⁻⁷) sends Leiden elsewhere, at the same accuracy.
-- **Speed.** Graph construction is 13–208× faster than 0.0.2's own path. With igraph's Leiden
+- **Speed.** Graph construction is 13–208× faster than 1.0's own path. With igraph's Leiden
   (`leiden="fast"`) the whole run is 17–197× faster, at the same accuracy.
 - **Every platform.** macOS, Linux and Windows, with no external binary and no temporary files.
-- **0.0.2 code keeps working.** The same names, arguments and import paths.
+- **1.0 code keeps working.** The same names, arguments and import paths.
 - **A command line** for clustering a file without writing code.
 - **Opt-in extras beyond the paper.** `find_communities_multiscale` recovers rare populations that
   any single resolution loses.
@@ -57,9 +57,9 @@ quality filtering, so labels stay aligned. More in the **[user guide](docs/user_
 data preparation, the pipeline step by step, the full API and command line, choosing parameters,
 reproducibility, and memory.
 
-## Upgrading from 0.0.2
+## Upgrading from 1.0
 
-0.0.2 code runs unchanged:
+1.0 code runs unchanged:
 
 ```python
 import CosTaL
@@ -67,27 +67,27 @@ labels = CosTaL.find_communities(X, pp_method="mass", nbr_num=10, resolution=0.8
 scores = CosTaL.return_scores(truth, labels)
 ```
 
-The [upgrade guide](docs/user_guide.md#11-upgrading-from-costal-002) lists every 0.0.2 function and
-what changed. Two differences change results in rare cases, and both fix bugs in 0.0.2:
+The [upgrade guide](docs/user_guide.md#11-upgrading-from-costal-10) lists every 1.0 function and
+what changed. Two differences change results in rare cases, and both fix bugs in 1.0:
 
-- 0.0.2's `p_knng` binary assumes non-negative input, so on arcsinh-transformed cytometry it returned
-  slightly wrong neighbors. 1.0 computes the exact kNN the paper describes.
-- 0.0.2's macOS/Windows path kept a duplicated cell in its own neighbor list. 1.0 excludes it, on
+- 1.0's `p_knng` binary assumes non-negative input, so on arcsinh-transformed cytometry it returned
+  slightly wrong neighbors. 2.0 computes the exact kNN the paper describes.
+- 1.0's macOS/Windows path kept a duplicated cell in its own neighbor list. 2.0 excludes it, on
   every platform.
 
 ## Speed at identical results
 
 Measured end to end on one Apple M1 Pro: kNN, weights, graph, and Leiden at the paper's settings.
-"0.0.2" is its own kNN path. Details in [docs/03 §10.4](docs/03_architecture_and_plan.md).
+"1.0" is its own kNN path. Details in [docs/03 §10.4](docs/03_architecture_and_plan.md).
 
-| Dataset | Cells × features | 0.0.2 | 1.0 | 1.0, `leiden="fast"` | Graph only | Same neighbors |
+| Dataset | Cells × features | 1.0 | 2.0 | 2.0, `leiden="fast"` | Graph only | Same neighbors |
 |---|---|---:|---:|---:|---:|---:|
 | GSE84133 (pancreas) | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.21 s (195×) | 208× | 100% |
 | Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 2.3 s (39×) | 39× | 100% |
 | Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% |
 | Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% |
 
-With the paper's Leiden settings, leidenalg itself takes 80–97% of 1.0's time; `leiden="fast"`
+With the paper's Leiden settings, leidenalg itself takes 80–97% of 2.0's time; `leiden="fast"`
 removes that bottleneck. Accuracy against the labels is the same within Leiden's run-to-run noise in
 every case.
 
@@ -96,9 +96,10 @@ every case.
 - [User guide](docs/user_guide.md): installation, quick start, API, command line, parameters, upgrading.
 - [Changelog](CHANGELOG.md).
 - [Development](docs/development.md): building, testing, benchmarks, releasing.
-- Design notes and every measurement behind this README (written under the working name "CosTaL+"):
+- Design notes and every measurement behind this README (written under the working name "CosTaL+" for 2.0;
+  "the original" there is 1.0):
   - [01 Technical plan](docs/01_technical_plan.md)
-  - [02 Profile of 0.0.2](docs/02_original_profile_report.md)
+  - [02 Profile of 1.0](docs/02_original_profile_report.md)
   - [03 Architecture and results](docs/03_architecture_and_plan.md)
   - [04 Selection metric and pruning](docs/04_selection_metric_and_pruning.md)
   - [05 Resolution limit](docs/05_resolution_limit_and_stopping.md)

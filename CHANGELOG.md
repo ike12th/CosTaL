@@ -4,9 +4,9 @@ All notable changes to CosTaL. Versions follow [semantic versioning](https://sem
 project rule (docs/04 §6.5): **changing what any default does is a major version**, and
 `compat="paper"` — the method exactly as published — is never removed.
 
-## 1.0.0 — 2026-10
+## 2.0.0 — 2026-10
 
-A rewrite of CosTaL 0.0.2.4 with the kNN graph in Rust. 0.0.2 code keeps working: the same names,
+A rewrite of CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph in Rust. 1.0 code keeps working: the same names,
 arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `clustering`, `pp`,
 `return_scores`, `from CosTaL.clustering import …`).
 
@@ -56,18 +56,18 @@ arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `
   identical neighbors; 17–197x end to end with `leiden="fast"` at the same accuracy (docs/03 §10.4).
 - Peak memory about twice the input matrix for the kNN; input diagnostics stream in 8 MB chunks.
 
-### Differences from 0.0.2.4
+### Differences from 1.0
 
 - The original's Linux `p_knng` binary assumes non-negative input and returns slightly wrong
-  neighbors on arcsinh-transformed cytometry with negative values; 1.0 computes the exact kNN
+  neighbors on arcsinh-transformed cytometry with negative values; 2.0 computes the exact kNN
   the paper describes everywhere.
 - The original's macOS/Windows fallback kept duplicate cells in their own neighbor lists and ran
-  Leiden for 100 iterations; 1.0 follows the published Linux path on every platform.
+  Leiden for 100 iterations; 2.0 follows the published Linux path on every platform.
 - `local=True` (UMAP-style local scaling) is not carried over: the original passed similarities where
   distances were expected, and the corrected version gave no consistent gain (docs/05 §2.2).
-- `build_graph()` is the 1.0 function (kNN → weights → fuzzy union from `X`, int32 row and column
-  indices); 0.0.2's `build_graph(rows, columns, weights, shape)` and its other internals (`save_as_ijv`,
+- `build_graph()` is the 2.0 function (kNN → weights → fuzzy union from `X`, int32 row and column
+  indices); 1.0's `build_graph(rows, columns, weights, shape)` and its other internals (`save_as_ijv`,
   `build_tani_graph`, `bc`, `map_tani`) are gone.
-- `find_communities` called the 1.0 way returns a numpy array; called with 0.0.2's arguments it
+- `find_communities` called the 2.0 way returns a numpy array; called with 1.0's arguments it
   returns a list, as before.
-- The evaluation helpers of `CosTaL.descriptions` are kept and match 0.0.2.
+- The evaluation helpers of `CosTaL.descriptions` are kept and match 1.0.

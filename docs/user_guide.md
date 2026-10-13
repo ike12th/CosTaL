@@ -2,9 +2,9 @@
 
 CosTaL clusters single-cell data — mass, flow and spectral cytometry, scRNA-seq — with the method of
 Li et al., *Briefings in Bioinformatics* 2023: an **exact** cosine kNN graph, Tanimoto edge weights,
-and Leiden community detection. Version 1.0 is a rewrite of CosTaL 0.0.2 with the kNN graph built in
+and Leiden community detection. Version 2.0 is a rewrite of CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph built in
 Rust: with no options it gives the same clusters as the published method, tens to hundreds of times
-faster, on every platform, with no external binary and no temporary files. Code written for 0.0.2
+faster, on every platform, with no external binary and no temporary files. Code written for 1.0
 keeps working (section 11).
 
 Contents
@@ -19,7 +19,7 @@ Contents
 8. [Choosing parameters](#8-choosing-parameters)
 9. [Reproducibility](#9-reproducibility)
 10. [Performance and memory](#10-performance-and-memory)
-11. [Upgrading from CosTaL 0.0.2](#11-upgrading-from-costal-002)
+11. [Upgrading from CosTaL 1.0](#11-upgrading-from-costal-10)
 12. [Troubleshooting](#12-troubleshooting)
 
 ---
@@ -30,7 +30,7 @@ Contents
 pip install CosTaL
 ```
 
-This installs everything CosTaL 1.0 uses:
+This installs everything CosTaL 2.0 uses:
 
 | For | Packages |
 |---|---|
@@ -135,13 +135,13 @@ what the original `pp()` produced:
   scipy sparse matrix. Select the marker columns yourself: leave out time, event length, DNA,
   viability, bead and barcode channels unless you mean to cluster on them.
 - **scRNA-seq drops cells.** Pass `return_cells=True` to get the indices of the cells kept and subset
-  your labels or AnnData with them; CosTaL 1.0 warns (`CostalWarning`) whenever a cell was dropped.
+  your labels or AnnData with them; CosTaL 2.0 warns (`CostalWarning`) whenever a cell was dropped.
 - `preset="normalize_total"` (scRNA-seq) scales each cell to the median library size before `log1p`.
   The paper's preprocessing has no library-size normalization, so its row norms mostly measure
   sequencing depth; on the paper's four scRNA-seq sets this preset was never worse and less
   sensitive to the resolution (docs/04 §6.7). It is opt-in; the default stays the paper's.
 - **Don't** feed PCA scores, z-scored or Pearson-residual data, or unit-normalized rows: Tanimoto
-  weights use the row norm as "overall abundance", which those transforms remove or change. CosTaL 1.0
+  weights use the row norm as "overall abundance", which those transforms remove or change. CosTaL 2.0
   detects these cases and warns (`CostalWarning`), but clusters anyway.
 
 ---
@@ -345,7 +345,7 @@ costal info
   results across machines, operating systems, thread counts and matrix-multiplication backends.
 - **Leiden is randomized.** Pass `seed=` for repeatable clusters. The same seed reproduces the same
   partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
-- **Parity with the original.** On the paper's datasets, CosTaL 1.0 and the original code give identical
+- **Parity with the original.** On the paper's datasets, CosTaL 2.0 and the original code give identical
   neighbor sets and, at the same Leiden seed, identical partitions on most datasets (docs/03 §10).
   Where partitions differ, the graphs differ only in the last bits of the edge weights (float32 vs
   float64 arithmetic), which Leiden can amplify; accuracy is the same.
@@ -361,7 +361,7 @@ costal info
 End to end (kNN + weights + graph + Leiden at the paper's settings) on one Apple M1 Pro, against the
 original code's own kNN path (docs/03 §10.4):
 
-| Dataset | Cells × features | Original | CosTaL 1.0 | CosTaL 1.0 `leiden="fast"` | Graph only | Same neighbors | Accuracy (original / CosTaL 1.0 / fast) |
+| Dataset | Cells × features | Original | CosTaL 2.0 | CosTaL 2.0 `leiden="fast"` | Graph only | Same neighbors | Accuracy (original / CosTaL 2.0 / fast) |
 |---|---|---:|---:|---:|---:|---:|---|
 | E-MTAB-3321 | 124 × 2,000 | 0.06 s | 0.02 s (3.1×) | 0.004 s (17×) | 13× | 100% | ARI 0.687 / 0.687 / 0.687 |
 | GSE81861 | 561 × 2,000 | 1.0 s | 0.11 s (9.1×) | 0.02 s (41×) | 40× | 100% | ARI 1.000 / 1.000 / 1.000 |
@@ -373,19 +373,19 @@ original code's own kNN path (docs/03 §10.4):
 | Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% | ARI 0.756 / 0.756 / 0.758 |
 | Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% | activated F1 0.020 / 0.019 / 0.038 |
 
-- "Graph only" is the kNN + weights + graph, where CosTaL 1.0's work is; with the paper's Leiden
-  settings, leidenalg itself is 80–97% of CosTaL 1.0's time, which is why the end-to-end gain on the
+- "Graph only" is the kNN + weights + graph, where CosTaL 2.0's work is; with the paper's Leiden
+  settings, leidenalg itself is 80–97% of CosTaL 2.0's time, which is why the end-to-end gain on the
   large cytometry sets is 2.4–4.3×. `leiden="fast"` removes that bottleneck.
 - At the same Leiden seed the partitions are identical on six datasets; on Nilsson_rare, Levine_13
   and Mosmann_rare the graphs have the same edges but the original's edge weights carry float32
-  rounding (≤ 6×10⁻⁷; CosTaL 1.0 computes them in float64), and Leiden follows a different path from
+  rounding (≤ 6×10⁻⁷; CosTaL 2.0 computes them in float64), and Leiden follows a different path from
   there. Accuracy is the same within Leiden's run-to-run noise.
 - The original's own path here is its brute-force kNN (what it runs on macOS); the paper's Linux runs
   used the `p_knng` binary, whose timings are in docs/02.
 
 ### Memory
 
-CosTaL 1.0 needs about **twice the input matrix** for the kNN — the input as float32 plus one working
+CosTaL 2.0 needs about **twice the input matrix** for the kNN — the input as float32 plus one working
 copy — plus 12 bytes per neighbor for the result; graph construction and Leiden add a few hundred
 bytes per edge (about k edges per cell), most of it inside igraph. Measured peak memory above the
 loaded input (Apple M1 Pro):
@@ -404,50 +404,50 @@ To keep memory low:
 - **scRNA-seq**: give `preprocess` sparse counts (an h5ad's `.X`); scanpy works on a copy, so dense
   counts cost twice. The 2000-gene result is dense: 8 kB per cell.
 - Very large dense matrices (millions of cells × thousands of features) need a sparse backend that
-  is not part of 1.0; reduce to highly variable genes first.
+  is not part of 2.0; reduce to highly variable genes first.
 
 ---
 
-## 11. Upgrading from CosTaL 0.0.2
+## 11. Upgrading from CosTaL 1.0
 
 ```bash
 pip install --upgrade CosTaL
 ```
 
-**0.0.2 code runs unchanged.** CosTaL 1.0 keeps the 0.0.2 names, arguments and import paths:
+**1.0 code runs unchanged.** CosTaL 2.0 keeps the 1.0 names, arguments and import paths:
 
-| 0.0.2 code | In 1.0 |
+| 1.0 code | In 2.0 |
 |---|---|
-| `CosTaL.find_communities(X, pp_method="mass", method="tani", nbr_num=10, resolution=0.8, seed=s)` | works as before and returns a list; 0.0.2's arguments select the 0.0.2 interface |
-| `CosTaL.find_communities(X, "mass")` | works (0.0.2's positional `pp_method`) |
+| `CosTaL.find_communities(X, pp_method="mass", method="tani", nbr_num=10, resolution=0.8, seed=s)` | works as before and returns a list; 1.0's arguments select the 1.0 interface |
+| `CosTaL.find_communities(X, "mass")` | works (1.0's positional `pp_method`) |
 | `CosTaL.clustering(X, ...)`, `CosTaL.pp(X, platform)`, `CosTaL.normalize_arcsinh(X, base)` | work as before |
 | `from CosTaL.clustering import find_communities, pp` | works |
-| `CosTaL.return_scores`, `get_f1_matrix`, `get_rare_f1`, `return_Ff1_score`, `return_Hf1_score`, `calculate_sparsity`, `from CosTaL.descriptions import …` | work as before; `return_scores` matches 0.0.2 to 1e-12 |
+| `CosTaL.return_scores`, `get_f1_matrix`, `get_rare_f1`, `return_Ff1_score`, `return_Hf1_score`, `calculate_sparsity`, `from CosTaL.descriptions import …` | work as before; `return_scores` matches 1.0 to 1e-12 |
 | `partition_type=` another leidenalg partition | works |
 | `n_threads=`, `seed=`, `resolution=` | work |
 | `verbose=`, `keep_temp_files=`, `temp_name=` | accepted, and have nothing to do (no temporary files) |
 | `local=True` | raises `NotImplementedError` (see below); for rare populations use `find_communities_multiscale` |
-| the 0.0.2 internals `save_as_ijv`, `build_tani_graph`, `bc`, `map_tani`, `build_graph(rows, columns, weights, shape)`, … | removed; `build_graph` is now the 1.0 function of section 4 |
+| the 1.0 internals `save_as_ijv`, `build_tani_graph`, `bc`, `map_tani`, `build_graph(rows, columns, weights, shape)`, … | removed; `build_graph` is now the 2.0 function of section 4 |
 
-The 1.0 interface sits next to it: `CosTaL.preprocess(X, platform)` then `CosTaL.find_communities(X)`
+The 2.0 interface sits next to it: `CosTaL.preprocess(X, platform)` then `CosTaL.find_communities(X)`
 (which then returns a numpy array), plus `knn`, `reweight`, `truncate`, `build_graph`,
-`find_communities_multiscale` and the `costal` command line. Mixing the two in one call — 0.0.2's
-`nbr_num` with 1.0's `leiden`, say — is an error rather than a guess.
+`find_communities_multiscale` and the `costal` command line. Mixing the two in one call — 1.0's
+`nbr_num` with 2.0's `leiden`, say — is an error rather than a guess.
 
 What changes in the results, and why:
 
-- **No binary, every platform.** 0.0.2 ran the `p_knng` executable on Linux and fell back to a slower
-  brute-force path elsewhere; 1.0 is one compiled library on all platforms.
+- **No binary, every platform.** 1.0 ran the `p_knng` executable on Linux and fell back to a slower
+  brute-force path elsewhere; 2.0 is one compiled library on all platforms.
 - **Exact kNN on all data.** The `p_knng` binary assumes non-negative input (its own documentation says
   so); arcsinh-transformed cytometry has negative values (27% of Levine_32's entries, 42% of
   Samusik_01's), where it returned slightly wrong neighbors for about 17% of Levine_32's cells. 1.0
   computes the exact cosine kNN the paper describes. On non-negative data (all scRNA-seq) the two
   agree exactly.
-- **macOS / Windows results now match Linux.** 0.0.2's fallback path kept a cell in its own neighbor
-  list when it had an exact duplicate and ran Leiden for 100 iterations instead of 10; 1.0 follows the
+- **macOS / Windows results now match Linux.** 1.0's fallback path kept a cell in its own neighbor
+  list when it had an exact duplicate and ran Leiden for 100 iterations instead of 10; 2.0 follows the
   published (Linux) path everywhere.
-- **Dropped cells are reported.** 0.0.2's scRNA-seq `pp()` returned only the matrix, so labels
-  silently shifted if `filter_cells` removed a cell; 1.0 warns, and `preprocess(..., return_cells=True)`
+- **Dropped cells are reported.** 1.0's scRNA-seq `pp()` returned only the matrix, so labels
+  silently shifted if `filter_cells` removed a cell; 2.0 warns, and `preprocess(..., return_cells=True)`
   returns the kept indices.
 - **`local=True`** passed similarities where distances were expected, inverting UMAP's local scaling.
   Fixed and evaluated, it gave no consistent improvement (docs/05 §2.2), so it was not carried over.
@@ -461,7 +461,7 @@ What changes in the results, and why:
 | `ImportError: ... needs igraph / leidenalg / scanpy` | they install with CosTaL; reinstall it (`pip install --force-reinstall CosTaL`), or on Windows on Arm use `leiden="fast"` |
 | `ValueError: ... seurat_v3 ... skmisc` or a numpy dtype-size error from `skmisc` | scikit-misc built for another numpy (e.g. numpy upgraded to 2.x by hand on Python 3.9): `pip install "numpy<2"` |
 | `TypeError: sparse input needs the sparse backend` | `knn` takes dense matrices; for scRNA-seq call `preprocess` first (it returns a dense matrix) |
-| `ValueError: row ... contains NaN or inf` | clean or impute the input; CosTaL 1.0 never guesses |
+| `ValueError: row ... contains NaN or inf` | clean or impute the input; CosTaL 2.0 never guesses |
 | `CostalWarning: row norms are nearly constant` | the rows are unit-normalized, so Tanimoto weights add nothing; cluster the untransformed data |
 | `CostalWarning: columns are centered` | PCA / z-scored input; Tanimoto weights change meaning; cluster the preprocessed, uncentered data |
 | `CostalWarning: filter_cells ... dropped N cells` | expected for low-quality cells; use `return_cells=True` to align labels |
