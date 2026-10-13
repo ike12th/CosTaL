@@ -107,7 +107,7 @@ fn parse_select(select: Option<&str>) -> PyResult<Select> {
 
 /// Exact kNN (fused blocked coarse selection + f64 rescoring). Returns (idx, cos, norms, stats).
 #[pyfunction]
-#[pyo3(signature = (x, k, *, select=None, margin=None, row_block=None, col_block=None, matmul=None, sort_by_norm=true, n_threads=None))]
+#[pyo3(signature = (x, k, *, select=None, margin=None, row_block=None, col_block=None, matmul=None, sort_by_norm=true, prune=true, n_threads=None))]
 #[allow(clippy::too_many_arguments)]
 fn _knn_exact<'py>(
     py: Python<'py>,
@@ -119,6 +119,7 @@ fn _knn_exact<'py>(
     col_block: Option<usize>,
     matmul: Option<&str>,
     sort_by_norm: bool,
+    prune: bool,
     n_threads: Option<usize>,
 ) -> PyResult<(KnnArrays<'py>, Bound<'py, PyDict>)> {
     let (n, d) = x.as_array().dim();
@@ -138,6 +139,7 @@ fn _knn_exact<'py>(
         col_block,
         matmul: backend,
         sort_by_norm,
+        prune,
         ..KnnParams::new(k)
     };
     let (result, st) = py
@@ -154,6 +156,8 @@ fn _knn_exact<'py>(
     stats.set_item("matmul", backend.name())?;
     stats.set_item("margin", params.margin)?;
     stats.set_item("select", params.select.name())?;
+    stats.set_item("blocks_skipped", st.blocks_skipped)?;
+    stats.set_item("blocks_total", st.blocks_total)?;
     Ok((knn_to_py(py, result)?, stats))
 }
 
