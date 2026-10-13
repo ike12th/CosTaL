@@ -307,6 +307,314 @@
           }
         }
       }
+    },
+    "Levine_32": {
+      "n": 161443,
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "resolutions": [
+        0.8,
+        1.0,
+        1.2,
+        1.5,
+        2.0
+      ],
+      "setups": {
+        "cosine/cosine": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.8280217829570622,
+              "ari_sd": 0.0653948432248524,
+              "rare_quarter_f1_mean": 0.3247716606071898,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.7224436370912501,
+              "ari_sd": 0.052637669688087904,
+              "rare_quarter_f1_mean": 0.3637599865699051,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.6922872915276741,
+              "ari_sd": 0.03847533455659956,
+              "rare_quarter_f1_mean": 0.38974811355328176,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.5819211429002712,
+              "ari_sd": 0.029329046572980823,
+              "rare_quarter_f1_mean": 0.40110142244817554,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.4779182726698722,
+              "ari_sd": 0.013013563112651836,
+              "rare_quarter_f1_mean": 0.5242240813572373,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0,
+                "sd": 0.0,
+                "wins": 0,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 0.8,
+          "best_ari_mean": 0.8280217829570622,
+          "best_ari_sd": 0.0653948432248524,
+          "per_seed_best_ari": {
+            "mean": 0.8280217829570622,
+            "sd": 0.0653948432248524
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": 0.0,
+            "wins": 0,
+            "of": 10
+          }
+        },
+        "cosine/tanimoto": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7634300743484366,
+              "ari_sd": 0.00800823824559962,
+              "rare_quarter_f1_mean": 0.3071893990478748,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.06459170860862563,
+                "sd": 0.06243463090106915,
+                "wins": 1,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.691192913533162,
+              "ari_sd": 0.0333761052198621,
+              "rare_quarter_f1_mean": 0.3865256422381233,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.03125072355808817,
+                "sd": 0.0504976441825678,
+                "wins": 3,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.657394419245721,
+              "ari_sd": 0.016770673813231177,
+              "rare_quarter_f1_mean": 0.39889289903653397,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.03489287228195317,
+                "sd": 0.037305084163547414,
+                "wins": 2,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.5712181125802414,
+              "ari_sd": 0.030794487376033363,
+              "rare_quarter_f1_mean": 0.41707379535281264,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.010703030320029916,
+                "sd": 0.03920927368509785,
+                "wins": 4,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.4790013662459575,
+              "ari_sd": 0.0317327429549837,
+              "rare_quarter_f1_mean": 0.5072617244695776,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.0010830935760852644,
+                "sd": 0.036758832279718046,
+                "wins": 5,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 0.8,
+          "best_ari_mean": 0.7634300743484366,
+          "best_ari_sd": 0.00800823824559962,
+          "per_seed_best_ari": {
+            "mean": 0.7634300743484366,
+            "sd": 0.00800823824559962
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": -0.06459170860862563,
+            "wins": 1,
+            "of": 10
+          }
+        },
+        "tanimoto/cosine": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7732991882155458,
+              "ari_sd": 0.03430902517756624,
+              "rare_quarter_f1_mean": 0.3964967013045084,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.05472259474151656,
+                "sd": 0.08128842216455158,
+                "wins": 2,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.6952249342940913,
+              "ari_sd": 0.037092396382876376,
+              "rare_quarter_f1_mean": 0.37997840472293376,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.0272187027971589,
+                "sd": 0.07200970751251101,
+                "wins": 2,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.6560219273295465,
+              "ari_sd": 0.028441668923768593,
+              "rare_quarter_f1_mean": 0.382069301768203,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.03626536419812768,
+                "sd": 0.03712710542075097,
+                "wins": 1,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.5638332949853502,
+              "ari_sd": 0.03430573140297115,
+              "rare_quarter_f1_mean": 0.39034071262916736,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.018087847914920997,
+                "sd": 0.04674857993758866,
+                "wins": 4,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.47873198281506496,
+              "ari_sd": 0.030012515768972438,
+              "rare_quarter_f1_mean": 0.5081496898679196,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": 0.000813710145192753,
+                "sd": 0.02791913986025426,
+                "wins": 4,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 0.8,
+          "best_ari_mean": 0.7732991882155458,
+          "best_ari_sd": 0.03430902517756624,
+          "per_seed_best_ari": {
+            "mean": 0.7743529174724599,
+            "sd": 0.033579653003645946
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": -0.05366886548460235,
+            "wins": 2,
+            "of": 10
+          }
+        },
+        "tanimoto/tanimoto": {
+          "by_resolution": {
+            "0.8": {
+              "ari_mean": 0.7777860254054679,
+              "ari_sd": 0.037063662275451714,
+              "rare_quarter_f1_mean": 0.3829409222549519,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.05023575755159439,
+                "sd": 0.08727188408929877,
+                "wins": 5,
+                "of": 10
+              }
+            },
+            "1.0": {
+              "ari_mean": 0.6874202998002965,
+              "ari_sd": 0.033434018403920865,
+              "rare_quarter_f1_mean": 0.39903491997492224,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.035023337290953825,
+                "sd": 0.07275031688648144,
+                "wins": 2,
+                "of": 10
+              }
+            },
+            "1.2": {
+              "ari_mean": 0.6656091824999844,
+              "ari_sd": 0.03038068038151903,
+              "rare_quarter_f1_mean": 0.4027261598052604,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.026678109027689644,
+                "sd": 0.04741200478427039,
+                "wins": 2,
+                "of": 10
+              }
+            },
+            "1.5": {
+              "ari_mean": 0.5681280498048928,
+              "ari_sd": 0.029079189637987973,
+              "rare_quarter_f1_mean": 0.401387727918037,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.013793093095378305,
+                "sd": 0.029023778295748568,
+                "wins": 5,
+                "of": 10
+              }
+            },
+            "2.0": {
+              "ari_mean": 0.47231732567795365,
+              "ari_sd": 0.01468127933574828,
+              "rare_quarter_f1_mean": 0.48703781205584945,
+              "paired_diff_vs_cosine_cosine": {
+                "mean": -0.005600946991918538,
+                "sd": 0.010324948498176006,
+                "wins": 3,
+                "of": 10
+              }
+            }
+          },
+          "best_resolution": 0.8,
+          "best_ari_mean": 0.7777860254054679,
+          "best_ari_sd": 0.037063662275451714,
+          "per_seed_best_ari": {
+            "mean": 0.7777860254054679,
+            "sd": 0.037063662275451714
+          },
+          "per_seed_best_diff_vs_cosine_cosine": {
+            "mean": -0.05023575755159439,
+            "wins": 5,
+            "of": 10
+          }
+        }
+      }
     }
   },
   "environment": {

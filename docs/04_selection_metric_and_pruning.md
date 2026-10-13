@@ -455,6 +455,10 @@ comes from depth and how much from biology currently cannot be told apart — th
 >   abundance, magnitude adds signal. Defaults stay as published (Tanimoto weights; that is also what
 >   the data favor); `select="tanimoto"` is worth trying on such panels when rare populations matter.
 >   Caveat: one dataset.
+> - **Control: the same check on Levine_32** (η² 0.10). Tanimoto selection's rarest-quarter F1 is higher
+>   only at 0.8 (0.38–0.40 vs 0.31–0.33) and level from 1.0 to 2.0; ARI on this grid just follows the
+>   resolution effect above (every setup's best lies at 0.2, below this grid). The rare-population
+>   gain tracks how much of the labels the row norm carries.
 
 ---
 
