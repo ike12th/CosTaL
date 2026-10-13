@@ -121,6 +121,32 @@ Unless it is converted somewhere else, the membership semantics under `local=Tru
 > **Evaluating it before it is fixed is meaningless.** Fix: first convert to distances (e.g. `1 − T`), sort each row ascending,
 > then pass to `smooth_knn_dist`.
 
+> **Evaluated (2026-10-13): no consistent gain, not shipped.** `bench/local_scaling.py`, numbers in
+> `bench/out/local_scaling.json`. Three graphs on the same exact kNN: `published`, `local_as_shipped`
+> (the original `local=True`, bug included) and `local_fixed` (distance 1 − T, ρᵢ/σᵢ fitted on
+> ascending rows, then the same fuzzy union); resolutions 0.2–2.0; F1 is the per-population best match
+> of §1.1.
+>
+> | Data | Graph | Best ARI | Best (F1 rarest-5 + F1 largest-5)/2 |
+> |---|---|---:|---|
+> | Levine_32 | published | 0.968 | 0.666 (0.441 / 0.890 at 0.8) |
+> | | local_as_shipped | 0.963 | 0.679 (0.478 / 0.880 at 0.8) |
+> | | local_fixed | 0.952 | 0.671 (0.480 / 0.862 at 0.8) |
+> | Levine_13 | published | 0.799 | 0.543 (0.161 / 0.925 at 1.2) |
+> | | local_as_shipped | 0.789 | 0.522 (0.138 / 0.906 at 2.0) |
+> | | local_fixed | 0.799 | 0.530 (0.157 / 0.903 at 2.0) |
+> | GSE84133 | published | 0.938 | 0.573 (0.280 / 0.867 at 1.2) |
+> | | local_as_shipped | 0.944 | 0.556 (0.139 / 0.973 at 0.8) |
+> | | local_fixed | 0.927 | 0.612 (0.251 / 0.973 at 0.4) |
+>
+> - Local scaling moves along the rare-vs-large trade-off rather than past it: +0.04 on GSE84133 (whose
+>   "rare" types have 1–14 cells, so that F1 is noisy), +0.005 on Levine_32, −0.013 on Levine_13, and
+>   best ARI equal or lower everywhere. It also shifts the effective resolution (fewer clusters at
+>   the same γ) and doubles the seed spread on Levine_32.
+> - The shipped bug is mild in practice: the inverted memberships still rank a row's neighbors
+>   consistently, so `local_as_shipped` lands close to the published graph. Fixing it doesn't help
+>   either. Item 1 of §2.4 is closed; the resolution limit is not a per-point scale problem here.
+
 **We recommend not doing true attention (softmax row normalization)**, for two reasons:
 
 1. Row normalization destroys the premise "edge weight = similarity, globally comparable". Modularity's null model assumes
@@ -198,8 +224,8 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 | | What | Cost | Why it ranks here |
 |---|---|---|---|
 | **0** | The diagnostic in §1.1 | ~20 lines | First prove the disease exists |
-| **1** | Evaluate `local=True` (first fix the issue in §2.2: semantics confirmed inverted) | Almost zero | Already implemented, non-greedy, `O(N·k)`, no added knob |
-| **2** | Multi-resolution stability | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
+| **1** | ~~Evaluate `local=True` (first fix the issue in §2.2: semantics confirmed inverted)~~ **Done: no consistent gain (§2.2)** | Almost zero | Already implemented, non-greedy, `O(N·k)`, no added knob |
+| **2** | Multi-resolution stability — **first attempt: gains on Levine_32 only (§2.3)** | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
 | **3** | Recursive splitting **+ significance-based stopping criterion** | High | Only worth it if 1 and 2 both fall short, and the contribution must be in the criterion |
 
 ---
