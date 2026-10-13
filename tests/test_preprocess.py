@@ -35,6 +35,16 @@ def test_rejects_bad_arguments():
         cp.preprocess(x, "scrnaseq", preset="normalize_total", compat="paper")
 
 
+def need_scanpy():
+    """scanpy plus a working scikit-misc loess (seurat_v3); a binary mismatch with numpy fails
+    only at import time of the extension, so probe it."""
+    pytest.importorskip("scanpy")
+    try:
+        from skmisc.loess import loess  # noqa: F401
+    except Exception as exc:  # ImportError, or ValueError on a numpy ABI mismatch
+        pytest.skip(f"scikit-misc loess unavailable: {exc}")
+
+
 def counts(seed=0, n=300, genes=3000, sparse_cells=(5, 77)):
     rng = np.random.default_rng(seed)
     mean = rng.gamma(0.3, 1.0, size=genes) * rng.uniform(0.5, 2.0, size=(n, 1))
@@ -49,8 +59,7 @@ def counts(seed=0, n=300, genes=3000, sparse_cells=(5, 77)):
 
 @pytest.mark.parametrize("preset", ["paper", "normalize_total"])
 def test_scrnaseq_matches_the_scanpy_pipeline(preset):
-    pytest.importorskip("scanpy")
-    pytest.importorskip("skmisc")
+    need_scanpy()
     import anndata
     import scanpy as sc
 
@@ -75,8 +84,7 @@ def test_scrnaseq_matches_the_scanpy_pipeline(preset):
 
 
 def test_scrnaseq_accepts_sparse_counts():
-    pytest.importorskip("scanpy")
-    pytest.importorskip("skmisc")
+    need_scanpy()
     sp = pytest.importorskip("scipy.sparse")
     x = counts(seed=2, sparse_cells=())
     np.testing.assert_array_equal(cp.preprocess(sp.csr_matrix(x), "scrnaseq"), cp.preprocess(x, "scrnaseq"))
