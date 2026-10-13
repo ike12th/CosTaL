@@ -26,6 +26,7 @@ faster (docs/03 §9).
 ```python
 import costal_plus
 
+X = costal_plus.preprocess(raw, "mass")                  # the original pp(): "mass", "flow", "spectral flow", "scrnaseq"
 labels = costal_plus.find_communities(X, k=10)          # the published CosTaL, end to end
 labels = costal_plus.find_communities(X, leiden="fast")  # igraph's native Leiden, ~38x faster clustering
 

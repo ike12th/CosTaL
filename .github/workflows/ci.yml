@@ -79,6 +79,7 @@ jobs:
       - run: pip install --upgrade pip maturin pytest numpy scipy
       # Optional: the find_communities tests skip if these have no wheel for this platform
       - run: pip install igraph leidenalg || echo "igraph/leidenalg unavailable; their tests will skip"
+      - run: pip install scanpy scikit-misc || echo "scanpy/scikit-misc unavailable; the scRNA-seq preprocess tests will skip"
       - run: pip install -e . --no-build-isolation
       - run: pytest -q
       - run: costal-plus info

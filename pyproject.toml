@@ -24,6 +24,8 @@ dependencies = ["numpy>=1.21"]
 bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
 # find_communities(): igraph for both settings, leidenalg for leiden="paper"
 leiden = ["igraph", "leidenalg"]
+# preprocess(platform="scrnaseq"): scanpy, and scikit-misc for the seurat_v3 HVG selection
+scrnaseq = ["scanpy", "scikit-misc"]
 dev = ["pytest", "maturin>=1.7", "scipy"]
 
 [project.urls]

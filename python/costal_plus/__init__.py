@@ -6,6 +6,7 @@ analysis.* Briefings in Bioinformatics, 2023. doi:10.1093/bib/bbad157
 
 End to end, with the published CosTaL's defaults (docs/04 §0.0)::
 
+    X = costal_plus.preprocess(raw, "mass")      # or "flow", "spectral flow", "scrnaseq"
     labels = costal_plus.find_communities(X, k=10)
 
 or step by step::
@@ -14,6 +15,7 @@ or step by step::
 """
 
 from ._api import CostalWarning, KnnGraph, build_graph, find_communities, knn, reweight, truncate
+from ._preprocess import preprocess
 from ._costal_plus import (
     __version__,
     core_version,
@@ -35,6 +37,7 @@ __all__ = [
     "hello",
     "knn",
     "l2_bytes_per_thread",
+    "preprocess",
     "reweight",
     "row_l2_norms",
     "tile_budget_bytes",

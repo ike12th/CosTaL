@@ -172,39 +172,14 @@ def load(name: str) -> Dataset:
     return _cached(name, _PARSERS[name])
 
 
-PRESETS = ("paper", "normalize_total")
-
-
 def preprocess(ds: Dataset, preset: str = "paper") -> tuple[np.ndarray, np.ndarray]:
-    """The original ``pp()`` (docs/04 §6.7). Returns the dense float32 matrix and the indices of
-    the cells kept.
+    """The original ``pp()`` via ``costal_plus.preprocess`` (docs/04 §6.7): the dense float32
+    matrix and the indices of the cells kept. Cytometry here is mass cytometry, arcsinh(x/5)."""
+    import costal_plus as cp
 
-    - cytometry: ``arcsinh(x/5)`` (mass cytometry; the preset is ignored);
-    - scRNA-seq, ``paper``: ``filter_cells(min_genes=200)`` → ``filter_genes(min_cells=3)`` →
-      2000 HVGs by ``seurat_v3`` on the raw counts → ``log1p`` → keep the HVGs;
-    - scRNA-seq, ``normalize_total``: the same with ``normalize_total()`` (median library size)
-      before ``log1p``.
-    """
     if ds.kind == "cytometry":
-        return np.arcsinh(ds.x / 5).astype(np.float32), np.arange(ds.x.shape[0])
-    if preset not in PRESETS:
-        raise ValueError(f"preset must be one of {PRESETS}, got {preset!r}")
-    import anndata
-    import scanpy as sc
-
-    ad = anndata.AnnData(X=ds.x.copy())
-    ad.obs_names = [str(i) for i in range(ad.n_obs)]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        sc.pp.filter_cells(ad, min_genes=200)
-        sc.pp.filter_genes(ad, min_cells=3)
-        sc.pp.highly_variable_genes(ad, n_top_genes=2000, flavor="seurat_v3")
-        if preset == "normalize_total":
-            sc.pp.normalize_total(ad)
-        sc.pp.log1p(ad)
-    x = ad.X[:, ad.var["highly_variable"].to_numpy()]
-    x = x.toarray() if sp.issparse(x) else np.asarray(x)
-    return np.ascontiguousarray(x, dtype=np.float32), ad.obs_names.astype(int).to_numpy()
+        return cp.preprocess(ds.x, "mass", return_cells=True)
+    return cp.preprocess(ds.x, "scrnaseq", preset=preset, return_cells=True)
 
 
 def describe(ds: Dataset, x: np.ndarray, kept: np.ndarray) -> dict:
