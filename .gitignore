@@ -25,6 +25,7 @@ bench/out/*
 !bench/out/local_scaling.json
 !bench/out/multiscale.json
 !bench/out/multiscale_igraph.json
+!bench/out/two_level.json
 !bench/out/timing_small.json
 !bench/out/magnitude_confirm.json
 .venv-arm64/

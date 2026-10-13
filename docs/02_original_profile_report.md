@@ -66,6 +66,22 @@ So the kNN column gives three implementations, bracketing the true cost:
 > - **L2Knng is designed for sparse data.** Its pruning is built on an inverted index; Levine_32dim is measured to be 100% dense,
 >   so it moves to the sparse backend (docs/06 §5).
 
+> **Addendum (2026-10-13): what the author's archive adds** (NAS, `Edgar_Lab/CosTaL_2026`, read only)
+>
+> - **The supplement states the assumption.** The paper's LaTeX source (`CosTaL_source/Supplementary.tex`,
+>   section "The L2knng and p-L2knng Algorithms") says that "L2knng assumes vectors are non-negative".
+>   The golden runs found exactly this (docs/04 §4); Levine's arcsinh data violate it.
+> - **1M_neurons timings** (`CosTaL_2023021525_scores.txt`, dataset 25, on the HPC): 3,210–3,612 s
+>   per end-to-end run (k = 20 / 25), of which writing the `.ijv` text alone took 436 s
+>   (`25_CosTaL_20230121_read_and_write_times.txt`) — the IPC overhead of §3.4 at full scale.
+> - **GSE81861 labels** (`48_all_PCA_50_2000.py`): the colour suffix of the column names, which maps
+>   one to one onto the 7 cell lines that `bench/datasets.py` uses; the counts were loaded dense,
+>   float64. So the 0.6% non-zero difference against Table 2 (docs/03 §10.1) is not the loading.
+> - **A multilevel option exists** (supplement, "CosTaL Multilevel Clustering"): re-cluster each
+>   population of ≥ 500 cells; two levels gave the best F1 on Mosmann_rare and Nilsson_rare. Its code
+>   (`clustering_iterative`, with `threshold`, `damp`, `depth`) was never released; docs/05 §2.3 uses
+>   a reconstruction as the baseline for the multi-resolution work.
+
 > **Addendum (2026-10-12): Levine_32dim contains 104,184 pairs of exactly duplicated cells**
 >
 > The upstream `prepare_data_Levine_32dim.R` concatenates the FCS files of the 14 gated populations with `NotDebrisSinglets`,

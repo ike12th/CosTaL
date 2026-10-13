@@ -75,6 +75,11 @@ the whole recursion tree adds up to a mere fraction of one top-level pass. The s
 
 But it has two hard flaws:
 
+> **The paper already has this path (found 2026-10-13, docs/02 addendum):** the supplement's "CosTaL
+> Multilevel Clustering" re-clusters every population of ≥ 500 cells, a size floor as the stopping
+> rule; two levels gave the best F1 on Mosmann_rare and Nilsson_rare. Reconstructed as a baseline in
+> `bench/two_level.py` (§2.3).
+
 **① Stopping criterion.** The decisive one. Leiden will **always** produce a partition for any graph — you can always keep splitting.
 Without a stopping criterion, "recursion depth" is just a new knob that is harder to interpret than resolution — **epistemically a step backward**.
 
@@ -261,6 +266,23 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 >   oracle; Levine_13 rarest-5 0.31 vs 0.12–0.15 and mean F1 0.55 vs 0.51, ARI 0.79 vs 0.86; GSE74672
 >   below the best single resolution. The 44-run ensemble costs 80 s serial on 161k cells (leidenalg:
 >   ~2.5 min on 6 cores).
+> - **Against the paper's own multilevel option** (`bench/two_level.py`, numbers in
+>   `bench/out/two_level.json`; reconstructed from the supplement: CosTaL at 0.8, then CosTaL again,
+>   with the kNN recomputed, inside every cluster of ≥ 500 cells; leidenalg, 4 seeds):
+>
+>   | Data | One level (0.8) | Two levels, ≥ 500 | Conductance, φ_max = 0.04 |
+>   |---|---|---|---|
+>   | Levine_32 | ARI 0.765 · rare 0.450 · large 0.887 · mean 0.688 | 0.189 · 0.647 · 0.337 · 0.500 (135 clusters) | 0.876 · 0.622 · 0.912 · 0.785 |
+>   | Levine_13 | 0.797 · 0.111 · 0.863 · 0.470 | 0.224 · 0.338 · 0.364 · 0.378 (149) | 0.769 · 0.315 · 0.908 · 0.550 |
+>   | GSE84133 | 0.853 · 0.139 · 0.917 · 0.590 | 0.396 · 0.140 · 0.692 · 0.510 (21) | 0.950 · 0.280 · 0.974 · 0.677 |
+>   | GSE74672 | 0.468 · 0.767 · 0.755 · 0.748 | 0.243 · 0.767 · 0.621 · 0.653 (24) | 0.480 · 0.689 · 0.723 · 0.705 |
+>
+>   Two levels reach about the same rare-population F1 as the conductance rule on the cytometry sets,
+>   but by shredding everything (135–149 clusters; the largest populations fall to F1 0.34–0.36). That
+>   fits what the paper used it for — the F1 of one rare population at a time on Mosmann_rare and
+>   Nilsson_rare — and shows why a stopping rule matters (§2.1 ①): the size floor stops nothing on
+>   cytometry-sized data. The conductance rule keeps the large populations intact while getting the
+>   rare ones.
 > - **Status: promising, not shipped.** Before it becomes an opt-in mode: datasets with known rare
 >   populations (Samusik, Nilsson_rare — not available offline), and a way for users to pick φ_max (or
 >   to see which carved clusters depend on it).
