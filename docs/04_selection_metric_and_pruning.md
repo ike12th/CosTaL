@@ -262,12 +262,12 @@ the real `p_knng` comparison goes into Linux CI.
 >   (0.83–0.87). Against the gating labels: p_knng graph ARI 0.770 ± 0.019 / NMI 0.862 ± 0.009,
 >   exact graph ARI 0.804 ± 0.073 / NMI 0.875 ± 0.026 — not distinguishable with 5 seeds.
 >
-> **Consequence for the default-value contract (§0.0, §6.5) — decision pending the author.**
-> `compat="paper"` cannot mean "bit-identical to the shipped binary": the binary's deviation from
-> its own stated method has no identified cause, so it can't be reproduced deliberately. The
-> proposal is that `compat="paper"` pins **the method as published** — exact cosine kNN, with
-> every other item of §0.0 — and that this section stays as the record of how the shipped
-> `p_knng` deviates from it.
+> **Consequence for the default-value contract (§0.0, §6.5) — decided 2026-10-12** (under authority
+> delegated by the author). `compat="paper"` cannot mean "bit-identical to the shipped binary": the
+> binary's deviation from its own stated method has no identified cause, so it can't be reproduced
+> deliberately. **`compat="paper"` pins the method as published** — exact cosine kNN, with every
+> other item of §0.0 — and this section stays as the record of how the shipped `p_knng` deviates
+> from it. Evidence that this costs nothing in accuracy: the clustering comparison above.
 
 ### 4.1 Deterministic tie-break (must be settled first, otherwise all three layers above fail)
 
@@ -412,6 +412,10 @@ costal_plus.knn(X, k=10, compat="paper")   # explicitly locks in all of bbad157'
 ```
 
 That way, even if the defaults later change because of the §5 experiment results, **the reproduction path always exists and is explicit**.
+
+**What "paper" means (decided 2026-10-12, §4 "Results")**: the method as published — exact cosine
+kNN plus the six items of §0.0 — not the output of the `p_knng` binary that shipped with CosTaL
+0.0.2.4, which is measurably inexact on Levine (recall@10 98.2%) for reasons not yet identified.
 
 ### 6.6 Input diagnostics recorded in the metadata (added 2026-10-12)
 
