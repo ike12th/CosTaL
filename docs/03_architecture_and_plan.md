@@ -508,3 +508,43 @@ input), and **identical Leiden partitions for every seed** at the paper's settin
 10 iterations, 5 seeds; same-seed ARI 1.000 everywhere). Together with the golden run (docs/04 §4:
 `p_knng` is exact on non-negative input, and all of these are non-negative), CosTaL+ reproduces the
 published scRNA-seq pipeline.
+
+### 10.3 Accuracy of the published method
+
+ARI against the labels (labeled cells only) for the published combination (cosine selection,
+Tanimoto weights), at the paper's resolution 0.8 and at the best resolution of the grid 0.05–2.0
+(`bench/out/small_datasets.json`; Levine_32 from §9 / `stage_c3.json`, deduplicated):
+
+| Dataset | ARI at 0.8 | Best ARI (resolution) |
+|---|---|---|
+| Levine_32 | 0.766 | 0.968 (0.2) |
+| Levine_13 | 0.799 ± 0.053 | 0.846 (1.0) |
+| E-MTAB-3321 | 0.687 | 0.883 (0.05) |
+| GSE81861 | 1.000 | 1.000 |
+| GSE74672 | 0.473 ± 0.027 | 0.662 (0.1) |
+| GSE84133 | 0.857 ± 0.007 | 0.938 (0.2) |
+
+The paper's fixed 0.8 is far from the best resolution on four of six sets; the best resolution ranges
+over 0.05–1.0 (docs/05 is about why no single value can be right). What the 2×2, the row norm and the
+presets do to these numbers is in docs/04 §5.1 and §6.7.
+
+### 10.4 End-to-end time
+
+`bench/timing_small.py`, idle M1 Pro, k = 10, best of 3 (Levine_13: 1 run). "Original" is the `bc()`
+path that CosTaL takes on macOS (phenograph's brute-force cosine kNN + `map_tani` + `build_graph`),
+**not** the Linux `p_knng` path the paper timed (docs/02 §1.1); Leiden at the paper's settings.
+
+| Dataset | Cells × features | Original | CosTaL+, paper Leiden | CosTaL+, `leiden="fast"` | Graph only |
+|---|---|---:|---:|---:|---:|
+| E-MTAB-3321 | 124 × 2000 | 0.06 s | 0.02 s (3×) | 0.004 s (15×) | 11× |
+| GSE81861 | 561 × 2000 | 0.94 s | 0.11 s (9×) | 0.02 s (47×) | 45× |
+| GSE74672 | 2,881 × 2000 | 22.3 s | 0.65 s (34×) | 0.14 s (155×) | 159× |
+| GSE84133 | 3,605 × 2000 | 35.1 s | 0.83 s (42×) | 0.17 s (204×) | 212× |
+| Levine_13 | 167,044 × 13 | 170.8 s | 71.7 s (2.4×) | 5.5 s (31×) | 29× |
+
+- On scRNA-seq the original's time is the kNN (34.3 of 35.1 s on GSE84133); CosTaL+ builds the graph in
+  0.16 s, so Leiden (0.67 s) becomes the larger part.
+- On Levine_13 (13 features, 167k cells) the graph takes 3.6 s against the original's 103.7 s, and
+  leidenalg with the paper's 10 iterations (68 s) is now 95% of the time. `leiden="fast"` takes it to
+  1.9 s; 2 leidenalg iterations reproduce 10 (§9.1) at about a third.
+- Preprocessing (scanpy, the same for both) takes 0.3–0.5 s on these sets.

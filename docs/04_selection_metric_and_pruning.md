@@ -417,10 +417,31 @@ comes from depth and how much from biology currently cannot be told apart — th
 >   +0.03 under `normalize_total`, against a seed SD of 0.01–0.05), except one small-sample case:
 >   E-MTAB-3321 (124 cells), tani/cos 0.79 vs 0.88, only under the paper preset. Magnitude carries
 >   label information here, but the direction already carries it too: Tanimoto adds no separable
->   signal. Together with Levine_32, this is outcome 2 of §5 on five datasets. Defaults unchanged.
+>   signal. Together with Levine_32, this is outcome 2 of §5 on five datasets (but see Levine_13 below).
+>   Defaults unchanged.
 > - **Selection changes the neighbors more under the paper preset** (mean Jaccard between cosine and
 >   Tanimoto neighbor sets 0.46–0.74) than under `normalize_total` (0.84–0.94): the depth term is what
 >   Tanimoto selection mostly reacts to.
+
+> **Levine_13 — the first dataset where magnitude helps (2026-10-13; same script, 3 seeds, 2 Leiden
+> iterations; 24 gated populations, 13 markers).** Here the row norm explains **η² = 0.89** of the
+> label variance (Levine_32: 0.10) and tracks overall marker abundance (Spearman 0.95).
+>
+> | select/weight | Best ARI (resolution) | Mean ARI over the grid | Best F1, rarest quarter |
+> |---|---|---:|---:|
+> | cosine/cosine | 0.817 ± 0.021 (1.5) | 0.675 | 0.184 |
+> | **cosine/tanimoto (published)** | 0.846 ± 0.009 (1.0) | 0.704 | 0.194 |
+> | tanimoto/cosine | 0.850 ± 0.019 (1.2) | 0.712 | 0.229 |
+> | tanimoto/tanimoto | 0.852 ± 0.022 (1.5) | 0.713 | 0.239 |
+>
+> Every setup that uses magnitude beats pure cosine, by ~0.03 ARI at the best resolution (1.3–3 seed
+> SDs) and 0.03–0.04 over the whole grid; the three are within noise of each other on ARI, with
+> Tanimoto selection ahead on the rare populations (0.23–0.24 vs 0.19). **So outcome 2 of §5 is not
+> universal:** magnitude adds signal when the direction alone doesn't carry it — 13 markers rather than
+> 32, populations that differ in overall abundance. The scRNA-seq sets had high η² too, but there the
+> 2000-gene direction already separated the labels. This is the published method's rationale, now
+> measured; it supports keeping Tanimoto weights as the default, and makes `select="tanimoto"` a
+> reasonable option for low-dimensional panels. Caveat: one dataset, 3 seeds.
 
 ---
 

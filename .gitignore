@@ -24,6 +24,7 @@ bench/out/*
 !bench/out/small_datasets.json
 !bench/out/local_scaling.json
 !bench/out/multiscale.json
+!bench/out/timing_small.json
 .venv-arm64/
 bench/data/
 .DS_Store

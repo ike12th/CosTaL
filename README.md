@@ -17,11 +17,26 @@ https://doi.org/10.1093/bib/bbad157
 
 ## Status
 
-**Stages A, A+ and C are done (v0.1.0)**: exact kNN (cosine, or Tanimoto with
-`select="tanimoto"`) + edge weights + symmetrization are in Rust; Leiden still uses `leidenalg`
-(docs/03 §5). No optional arguments = the published CosTaL. Stage C measured that 2 Leiden
-iterations reproduce the paper's 10 at a third of the cost, and igraph's native Leiden is 38×
-faster (docs/03 §9).
+**Stages A, A+, C and D are done (v0.1.0)**: exact kNN (cosine, or Tanimoto with
+`select="tanimoto"`) + edge weights + symmetrization are in Rust; Leiden uses `leidenalg` exactly as
+the paper, or igraph's native implementation with `leiden="fast"`. `preprocess()` is the original
+`pp()`. No optional arguments = the published CosTaL.
+
+- **Reproduces the paper.** On the paper's scRNA-seq sets (E-MTAB-3321, GSE81861, GSE74672,
+  GSE84133) the preprocessing matches the paper's Table 2 (to the entry on three, within 0.6% on
+  GSE81861), and the graph and the Leiden
+  partitions are identical to the original code's for every seed (docs/03 §10). The shipped
+  `p_knng` binary is exact on non-negative input; on Levine its sign checks perturb ~17% of rows,
+  within Leiden's noise (docs/04 §4).
+- **Is the "+" worth it?** Tanimoto *selection*, Tanimoto vs cosine weights, and the row norm were
+  measured on six datasets (docs/04 §5.1). On Levine_13 (13 markers; the row norm explains 89% of the
+  label variance) every setup using magnitude beats pure cosine by ~0.03 ARI, Tanimoto selection best
+  on rare populations; on the other five it is a tie. The `normalize_total` scRNA-seq preset is never
+  worse and less resolution-sensitive (opt-in, docs/04 §6.7).
+- **Resolution limit (methodology track, docs/05).** Rare populations are systematically lost at any
+  single resolution. The fixed `local=True` doesn't help; a stability-based multi-resolution selection
+  reaches the per-population optimum on Levine_32 but does not transfer to the other datasets yet.
+  Neither is shipped.
 
 ```python
 import costal_plus

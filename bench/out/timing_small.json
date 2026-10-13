@@ -1,0 +1,118 @@
+{
+  "datasets": {
+    "E-MTAB-3321": {
+      "cells": 124,
+      "features": 2000,
+      "repeat": 3,
+      "preprocess_s": 4.886345208,
+      "original_knn_s": 0.04076441700000011,
+      "original_weights_graph_s": 0.0043845419999986035,
+      "original_leiden_paper_s": 0.017028458000000413,
+      "costal_plus_graph_s": 0.003983458999998746,
+      "costal_plus_leiden_paper_s": 0.01702191699999922,
+      "costal_plus_leiden_fast_s": 0.00028429099999982554,
+      "end_to_end_s": {
+        "original": 0.062177416999999124,
+        "costal_plus_paper": 0.021005375999997966,
+        "costal_plus_fast": 0.004267749999998571
+      },
+      "speedup_graph": 11.334109124761401,
+      "speedup_end_to_end_paper": 2.960071602622355,
+      "speedup_end_to_end_fast": 14.569132915475354
+    },
+    "GSE81861": {
+      "cells": 561,
+      "features": 2000,
+      "repeat": 3,
+      "preprocess_s": 0.5473188750000002,
+      "original_knn_s": 0.8347590829999998,
+      "original_weights_graph_s": 0.021615208000000052,
+      "original_leiden_paper_s": 0.08693891700000123,
+      "costal_plus_graph_s": 0.019032250000000417,
+      "costal_plus_leiden_paper_s": 0.08732416699999845,
+      "costal_plus_leiden_fast_s": 0.0011603749999995472,
+      "end_to_end_s": {
+        "original": 0.9433132080000011,
+        "costal_plus_paper": 0.10635641699999887,
+        "costal_plus_fast": 0.020192624999999964
+      },
+      "speedup_graph": 44.995956389811035,
+      "speedup_end_to_end_paper": 8.869358658443817,
+      "speedup_end_to_end_fast": 46.71572952996466
+    },
+    "GSE74672": {
+      "cells": 2881,
+      "features": 2000,
+      "repeat": 3,
+      "preprocess_s": 0.3281965410000005,
+      "original_knn_s": 21.716560166000008,
+      "original_weights_graph_s": 0.10073749999999393,
+      "original_leiden_paper_s": 0.5166750000000064,
+      "costal_plus_graph_s": 0.1370241250000035,
+      "costal_plus_leiden_paper_s": 0.5141126249999957,
+      "costal_plus_leiden_fast_s": 0.007170666999996911,
+      "end_to_end_s": {
+        "original": 22.333972666000008,
+        "costal_plus_paper": 0.6511367499999992,
+        "costal_plus_fast": 0.1441947920000004
+      },
+      "speedup_graph": 159.22230969181118,
+      "speedup_end_to_end_paper": 34.29997257258178,
+      "speedup_end_to_end_fast": 154.8875126225082
+    },
+    "GSE84133": {
+      "cells": 3605,
+      "features": 2000,
+      "repeat": 3,
+      "preprocess_s": 0.2514628750000014,
+      "original_knn_s": 34.29428091599999,
+      "original_weights_graph_s": 0.1658760840000184,
+      "original_leiden_paper_s": 0.6715971250000052,
+      "costal_plus_graph_s": 0.16283295800002406,
+      "costal_plus_leiden_paper_s": 0.6697441670000046,
+      "costal_plus_leiden_fast_s": 0.009574084000007588,
+      "end_to_end_s": {
+        "original": 35.131754125000015,
+        "costal_plus_paper": 0.8325771250000287,
+        "costal_plus_fast": 0.17240704200003165
+      },
+      "speedup_graph": 211.62888289479403,
+      "speedup_end_to_end_paper": 42.196396069611936,
+      "speedup_end_to_end_fast": 203.77215290889083
+    },
+    "Levine_13": {
+      "cells": 167044,
+      "features": 13,
+      "repeat": 1,
+      "preprocess_s": 0.036177209000015864,
+      "original_knn_s": 100.57769508300001,
+      "original_weights_graph_s": 3.1078174579999995,
+      "original_leiden_paper_s": 67.1361005,
+      "costal_plus_graph_s": 3.5869924169999763,
+      "costal_plus_leiden_paper_s": 68.11874791700001,
+      "costal_plus_leiden_fast_s": 1.899510792000001,
+      "end_to_end_s": {
+        "original": 170.821613041,
+        "costal_plus_paper": 71.70574033399998,
+        "costal_plus_fast": 5.486503208999977
+      },
+      "speedup_graph": 28.90597483551934,
+      "speedup_end_to_end_paper": 2.3822585506449787,
+      "speedup_end_to_end_fast": 31.134878908078793
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "costal_plus": "0.1.0",
+    "threads": 8,
+    "default_matmul": "accelerate",
+    "l2_bytes_per_thread": 4194304,
+    "tile_budget_bytes": 2097152,
+    "veclib_maximum_threads": null,
+    "build": "cpython-39-darwin"
+  },
+  "k": 10
+}
