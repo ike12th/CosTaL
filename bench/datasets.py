@@ -13,6 +13,16 @@ Labels (``-1`` = unlabeled):
   suffix (``_B1`` / ``_B2``) dropped — 7 lines.
 - **GSE74672** (Romanov 2017, hypothalamus): ``level1 class`` (7 classes).
 - **GSE84133** (Baron 2016, pancreas, donor human3): ``assigned_cluster`` (14 types).
+- **Samusik_01** (mass cytometry, mouse bone marrow): 24 gated populations; the 39 ``type`` markers;
+  arcsinh(x/5).
+- **Nilsson_rare** (flow cytometry): HSCs (358 cells) vs the rest; the 13 ``type`` markers plus PI;
+  arcsinh(x/150).
+- **Mosmann_rare** (flow cytometry): activated cells (109) vs the rest; the 7 ``type`` and 7 ``state``
+  markers plus Live_Dead; arcsinh(x/150).
+
+The three cytometry sets come from Bioconductor's HDCytoData (ExperimentHub, the ``*_SE.rda``
+SummarizedExperiments), read with ``bench/rds.py`` instead of R. Their marker sets are the ones that
+reproduce the paper's Table 2 exactly; Table 2's "non-zeros" counts *positive* entries (docs/03 §10.1).
 
 ``preprocess`` reproduces the original ``pp()`` (bench/reference, ``CosTaL/clustering.py``) and
 tracks which cells survive ``filter_cells``, which the original does not (it returns only the
@@ -36,6 +46,9 @@ from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))  # for bench/rds.py
 DATA = Path(os.environ.get("COSTAL_DATA", "/Volumes/X31/costal-plus-data"))
 CACHE = DATA / "cache"
 
@@ -46,6 +59,9 @@ SOURCES = {
     "GSE81861": "GEO GSE81861: GSE81861_Cell_Line_COUNT.csv.gz",
     "GSE74672": "GEO GSE74672: GSE74672_expressed_mols_with_classes.xlsx.gz",
     "GSE84133": "GEO GSM2230759 (GSE84133, donor human3): GSM2230759_human3_umifm_counts.csv.gz",
+    "Samusik_01": "Bioconductor ExperimentHub EH2244 (HDCytoData): Samusik_01_SE.rda",
+    "Nilsson_rare": "Bioconductor ExperimentHub EH2248 (HDCytoData): Nilsson_rare_SE.rda",
+    "Mosmann_rare": "Bioconductor ExperimentHub EH2250 (HDCytoData): Mosmann_rare_SE.rda",
 }
 
 # Table 2 of the paper: cells after preprocessing, features, non-zeros, sparsity (%)
@@ -55,9 +71,16 @@ PAPER_TABLE2 = {
     "GSE81861": {"original_features": 57_241, "cells": 561, "features": 2000, "nnz": 214_688, "sparsity": 80.866},
     "GSE74672": {"original_features": 24_341, "cells": 2_881, "features": 2000, "nnz": 821_520, "sparsity": 85.742},
     "GSE84133": {"original_features": 20_125, "cells": 3_605, "features": 2000, "nnz": 792_390, "sparsity": 89.010},
+    "Samusik_01": {"cells": 86_864, "labeled": 53_173, "features": 39, "nnz": 1_949_437, "sparsity": 42.455},
+    "Nilsson_rare": {"cells": 44_140, "labeled": 358, "features": 14, "nnz": 616_569, "sparsity": 0.225},
+    "Mosmann_rare": {"cells": 396_460, "labeled": 109, "features": 15, "nnz": 5_808_969, "sparsity": 2.319},
 }
-NAMES = list(PAPER_TABLE2)
+NAMES = ["Levine_13", "E-MTAB-3321", "GSE81861", "GSE74672", "GSE84133"]
 SCRNA = [n for n in NAMES if n != "Levine_13"]
+CYTOMETRY_EXTRA = ["Samusik_01", "Nilsson_rare", "Mosmann_rare"]
+# arcsinh cofactor platform of each cytometry set; the rare population of the one-population sets
+PLATFORM = {"Levine_13": "mass", "Samusik_01": "mass", "Nilsson_rare": "flow", "Mosmann_rare": "flow"}
+RARE = {"Nilsson_rare": "HSCs", "Mosmann_rare": "activated"}
 
 
 @dataclass
@@ -164,8 +187,24 @@ def _baron() -> Dataset:
                    labels, classes, genes)
 
 
+def _hdcyto(name: str, classes: tuple, extra: tuple, unlabeled: str | None) -> Dataset:
+    from rds import read_rda, summarized_experiment
+
+    se = next(iter(read_rda(DATA / name / f"{name}_SE.rda").values()))
+    x, rows, cols = summarized_experiment(se)
+    keep = [i for i, (m, c) in enumerate(zip(cols["marker_name"], cols["marker_class"]))
+            if c in classes or m in extra]
+    pops = [None if p == unlabeled else p for p in rows["population_id"]]
+    labels, names = _encode(pops)
+    return Dataset(name, "cytometry", np.ascontiguousarray(x[:, keep], dtype=np.float64), labels, names,
+                   [cols["marker_name"][i] for i in keep])
+
+
 _PARSERS = {"Levine_13": _levine_13, "E-MTAB-3321": _goolam, "GSE81861": _li,
-            "GSE74672": _romanov, "GSE84133": _baron}
+            "GSE74672": _romanov, "GSE84133": _baron,
+            "Samusik_01": lambda: _hdcyto("Samusik_01", ("type",), (), "unassigned"),
+            "Nilsson_rare": lambda: _hdcyto("Nilsson_rare", ("type",), ("PI",), None),
+            "Mosmann_rare": lambda: _hdcyto("Mosmann_rare", ("type", "state"), ("Live_Dead",), None)}
 
 
 def load(name: str) -> Dataset:
@@ -174,32 +213,41 @@ def load(name: str) -> Dataset:
 
 def preprocess(ds: Dataset, preset: str = "paper") -> tuple[np.ndarray, np.ndarray]:
     """The original ``pp()`` via ``costal_plus.preprocess`` (docs/04 §6.7): the dense float32
-    matrix and the indices of the cells kept. Cytometry here is mass cytometry, arcsinh(x/5)."""
+    matrix and the indices of the cells kept. Cytometry: arcsinh with the platform's cofactor."""
     import costal_plus as cp
 
     if ds.kind == "cytometry":
-        return cp.preprocess(ds.x, "mass", return_cells=True)
+        return cp.preprocess(ds.x, PLATFORM[ds.name], return_cells=True)
     return cp.preprocess(ds.x, "scrnaseq", preset=preset, return_cells=True)
 
 
 def describe(ds: Dataset, x: np.ndarray, kept: np.ndarray) -> dict:
     labels = ds.labels[kept]
+    labeled = (int(np.sum(labels == ds.classes.index(RARE[ds.name]))) if ds.name in RARE
+               else int(np.sum(labels >= 0)))  # Table 2 counts the rare population as "labeled"
+    positives = int(np.count_nonzero(x > 0))
     return {
         "original_features": ds.x.shape[1], "cells": int(x.shape[0]), "features": int(x.shape[1]),
-        "labeled": int(np.sum(labels >= 0)), "classes": len(ds.classes),
+        "labeled": labeled, "classes": len(ds.classes),
         "nnz": int(np.count_nonzero(x)), "sparsity": round(100 * (1 - np.count_nonzero(x) / x.size), 3),
+        "positives": positives, "nonpositive_share": round(100 * (1 - positives / x.size), 3),
         "negative_share": round(100 * float(np.mean(x < 0)), 3),
         "smallest_class": int(np.bincount(labels[labels >= 0]).min()),
     }
 
 
+# Table 2's "non-zeros" and "sparsity" count positive entries (equal to non-zeros on scRNA-seq)
+_TABLE2_KEYS = {"nnz": "positives", "sparsity": "nonpositive_share"}
+
+
 def cmd_check() -> None:
-    for name in NAMES:
+    for name in PAPER_TABLE2:
         ds = load(name)
         x, kept = preprocess(ds)
         ours = describe(ds, x, kept)
         paper = PAPER_TABLE2[name]
-        diff = {k: (ours[k], v) for k, v in paper.items() if ours.get(k) != v}
+        diff = {k: (ours[_TABLE2_KEYS.get(k, k)], v) for k, v in paper.items()
+                if ours.get(_TABLE2_KEYS.get(k, k)) != v}
         print(f"{name:<12} {json.dumps(ours)}")
         print(f"{'':<12} differs from the paper (ours, paper): {diff or 'nothing'}", flush=True)
 

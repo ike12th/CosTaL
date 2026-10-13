@@ -79,6 +79,8 @@ def run(name: str) -> dict:
             if tag in out["levels"]:
                 continue
             out["levels"][tag] = {k: float(np.mean([r[k] for r in runs])) for k in keys}
+            out["levels"][tag]["f1_by_population"] = {
+                str(p): float(np.mean([r["f1_by_population"][str(p)] for r in runs])) for p in order}
             s = out["levels"][tag]
             print(f"  {name:<9} {tag:<15} ARI {s['ari']:.3f}  clusters {s['clusters']:5.1f}  F1 rarest-5 "
                   f"{s['f1_rarest_5']:.3f}  largest-5 {s['f1_largest_5']:.3f}  mean {s['f1_mean']:.3f}", flush=True)
@@ -95,4 +97,5 @@ def main(names: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:] or ["Levine_32", "Levine_13", "GSE84133", "GSE74672"])
+    main(sys.argv[1:] or ["Levine_32", "Levine_13", "GSE84133", "GSE74672",
+                          "Samusik_01", "Nilsson_rare", "Mosmann_rare"])

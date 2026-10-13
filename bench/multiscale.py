@@ -300,4 +300,5 @@ def main(names: list[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:] or ["Levine_32", "Levine_13", "GSE84133", "GSE74672"])
+    main(sys.argv[1:] or ["Levine_32", "Levine_13", "GSE84133", "GSE74672",
+                          "Samusik_01", "Nilsson_rare", "Mosmann_rare"])
