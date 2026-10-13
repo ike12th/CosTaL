@@ -12,6 +12,11 @@ It answers the two open items in docs/04 §4:
 Runs only on Linux x86-64 (the CI ubuntu runner). Usage:
 
     python bench/golden_pknng.py [N ...]      # default 20000 50000; each N runs deduplicated and raw
+    GOLDEN_CLIP=1 python bench/golden_pknng.py 20000   # same, with negative values clipped to 0
+
+Why the clip variant: the pl2knng source (0.2.0, 2021) treats `> 0` as "present" — candidate
+accumulators use the sign as a state flag, and the remaining dot product skips features where the
+query value is negative — so it is only exact on non-negative data (docs/04 §4).
 
 Output: `bench/out/golden_pknng.json`, plus each run's `.clu` (`bench/out/golden/`).
 """
@@ -122,24 +127,31 @@ def compare(x: np.ndarray, raw_cols: np.ndarray, vals: np.ndarray) -> dict:
 
 
 def main(sizes: list[int]) -> None:
+    import os
+
+    clip = os.environ.get("GOLDEN_CLIP") == "1"
     results = []
     for n in sizes:
         for dedup in (True, False):
             x, _ = load_levine(n, dedup=dedup)
-            tag = f"levine_n{n}_{'dedup' if dedup else 'raw'}"
+            if clip:
+                x = np.clip(x, 0, None)
+            tag = f"levine_n{n}_{'dedup' if dedup else 'raw'}{'_clip' if clip else ''}"
             raw_cols, vals, meta, seconds = run_pknng(x, tag)
-            row = {"n": n, "dedup": dedup, "clu_meta": meta, "pknng_s": seconds, **compare(x, raw_cols, vals)}
+            row = {"n": n, "dedup": dedup, "clip_negatives": clip, "clu_meta": meta,
+                   "pknng_s": seconds, **compare(x, raw_cols, vals)}
             results.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({
+    out = OUT.with_name("golden_pknng_clip.json") if clip else OUT
+    out.write_text(json.dumps({
         "environment": {"platform": platform.platform(), "machine": platform.machine(),
                         "python": sys.version.split()[0], "costal_plus": cp.__version__,
                         "cpus": os.cpu_count()},
         "k": K,
         "runs": results,
     }, indent=2, ensure_ascii=False))
-    print(f"→ {OUT}")
+    print(f"-> {out}")
 
 
 if __name__ == "__main__":

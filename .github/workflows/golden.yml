@@ -12,6 +12,10 @@ on:
         description: "Levine subsample sizes, space-separated; each runs both deduplicated and raw"
         type: string
         default: "20000 50000"
+      clip:
+        description: "clip negative values to 0 first (pl2knng assumes non-negative input)"
+        type: boolean
+        default: false
 
 jobs:
   pknng:
@@ -39,12 +43,13 @@ jobs:
       - name: run p_knng and compare
         env:
           SIZES: ${{ inputs.sizes }}
+          GOLDEN_CLIP: ${{ inputs.clip && '1' || '0' }}
         run: python bench/golden_pknng.py $SIZES
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: golden-pknng
           path: |
-            bench/out/golden_pknng.json
+            bench/out/golden_pknng*.json
             bench/out/golden/*.clu
           retention-days: 30
