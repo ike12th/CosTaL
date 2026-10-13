@@ -18,7 +18,15 @@ import numpy as np
 
 from . import _costal_plus as _ext
 
-__all__ = ["CostalWarning", "KnnGraph", "build_graph", "knn", "reweight", "truncate"]
+__all__ = [
+    "CostalWarning",
+    "KnnGraph",
+    "build_graph",
+    "find_communities",
+    "knn",
+    "reweight",
+    "truncate",
+]
 
 
 class CostalWarning(UserWarning):
@@ -269,3 +277,86 @@ def build_graph(
     )
     w = reweight(g, weight)
     return _ext._fuzzy_union(g.idx, w)
+
+
+_LEIDEN = {
+    # The published CosTaL: leidenalg, RBConfiguration, 10 iterations (docs/04 §0.0 item 5)
+    "paper": 10,
+    # igraph's native Leiden on the same objective: 38x faster on Levine, same accuracy against the
+    # gating labels, but a different implementation whose partitions differ more (docs/03 §9.1)
+    "fast": 2,
+}
+
+
+def find_communities(
+    X: Any,
+    k: int = 10,
+    *,
+    select: str = "cosine",
+    weight: str = "tanimoto",
+    normalize: str | None = None,
+    resolution: float = 0.8,
+    leiden: str = "paper",
+    n_iterations: int | None = None,
+    seed: int | None = None,
+    compat: str | None = None,
+    n_threads: int | None = None,
+) -> np.ndarray:
+    """End to end: exact kNN → edge weights → fuzzy union → Leiden. Returns ``(n,)`` int64 labels.
+
+    With no optional arguments this is the published CosTaL (docs/04 §0.0): cosine selection,
+    Tanimoto weights, fuzzy-union symmetrization, then leidenalg's RBConfiguration partition at
+    resolution 0.8 with 10 iterations.
+
+    Args:
+        leiden: ``"paper"`` uses leidenalg exactly as the original; ``"fast"`` uses igraph's native
+            Leiden on the same modularity objective (docs/03 §9.1).
+        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 for ``"fast"``.
+            Negative runs until the partition is stable.
+        seed: Leiden seed. For ``"fast"`` it seeds Python's ``random`` module, which python-igraph
+            draws from.
+        compat: ``"paper"`` refuses any setting that departs from the published method.
+
+    Needs ``igraph`` (and ``leidenalg`` for ``"paper"``): ``pip install costal-plus[leiden]``.
+    """
+    if leiden not in _LEIDEN:
+        raise ValueError(f"leiden must be one of {tuple(_LEIDEN)}, got {leiden!r}")
+    iterations = _LEIDEN[leiden] if n_iterations is None else int(n_iterations)
+    if compat == "paper" and (
+        leiden != "paper" or resolution != 0.8 or iterations != 10
+        or select != "cosine" or weight != "tanimoto"
+    ):
+        raise ValueError(
+            "compat='paper' pins cosine selection, Tanimoto weights and leidenalg with "
+            "resolution 0.8 and 10 iterations (docs/04 §0.0)"
+        )
+    try:
+        import igraph as ig
+    except ImportError as exc:  # pragma: no cover - depends on the environment
+        raise ImportError("find_communities needs igraph: pip install costal-plus[leiden]") from exc
+
+    g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
+    w = reweight(g, weight)
+    rows, cols, ew = _ext._fuzzy_union(g.idx, w)
+    graph = ig.Graph(n=g.n, edges=np.column_stack([rows, cols]).tolist(),
+                     edge_attrs={"weight": ew.tolist()})
+    if leiden == "paper":
+        try:
+            import leidenalg as la
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise ImportError(
+                "leiden='paper' needs leidenalg: pip install costal-plus[leiden]"
+            ) from exc
+        part = la.find_partition(graph, la.RBConfigurationVertexPartition, weights="weight",
+                                 n_iterations=iterations, resolution_parameter=resolution,
+                                 seed=seed)
+        membership = part.membership
+    else:
+        if seed is not None:
+            import random
+
+            random.seed(seed)
+        membership = graph.community_leiden(objective_function="modularity", weights="weight",
+                                            resolution=resolution,
+                                            n_iterations=iterations).membership
+    return np.asarray(membership, dtype=np.int64)

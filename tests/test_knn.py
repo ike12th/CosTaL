@@ -261,6 +261,30 @@ def test_warns_when_columns_are_centered():
         cp.reweight(g, "tanimoto")
 
 
+def test_find_communities_paper_matches_manual_pipeline():
+    ig = pytest.importorskip("igraph")
+    la = pytest.importorskip("leidenalg")
+    x = clustered(1500, 12, 17)
+    labels = cp.find_communities(x, 10, seed=3)
+    rows, cols, w = cp.build_graph(x, 10)
+    graph = ig.Graph(n=len(x), edges=list(zip(rows.tolist(), cols.tolist())),
+                     edge_attrs={"weight": w.tolist()})
+    want = la.find_partition(graph, la.RBConfigurationVertexPartition, weights="weight",
+                             n_iterations=10, resolution_parameter=0.8, seed=3).membership
+    np.testing.assert_array_equal(labels, want)
+
+
+def test_find_communities_fast_and_compat_guard():
+    pytest.importorskip("igraph")
+    x = clustered(800, 8, 18)
+    a = cp.find_communities(x, 10, leiden="fast", seed=5)
+    b = cp.find_communities(x, 10, leiden="fast", seed=5)
+    np.testing.assert_array_equal(a, b)
+    assert a.shape == (800,) and len(np.unique(a)) > 1
+    with pytest.raises(ValueError, match="compat='paper'"):
+        cp.find_communities(x, 10, leiden="fast", compat="paper")
+
+
 def test_no_warnings_on_cytof_like_input():
     g = cp.knn(clustered(300, 8, 13), 5)
     with warnings.catch_warnings():

@@ -24,8 +24,13 @@ iterations reproduce the paper's 10 at a third of the cost, and igraph's native 
 faster (docs/03 §9).
 
 ```python
-import costal_plus, igraph, leidenalg as la
+import costal_plus
 
+labels = costal_plus.find_communities(X, k=10)          # the published CosTaL, end to end
+labels = costal_plus.find_communities(X, leiden="fast")  # igraph's native Leiden, ~38x faster clustering
+
+# Or step by step, handing the graph to Leiden yourself:
+import igraph, leidenalg as la
 rows, cols, w = costal_plus.build_graph(X, k=10)        # exact cosine kNN → Tanimoto → fuzzy union
 G = igraph.Graph(n=len(X), edges=list(zip(rows.tolist(), cols.tolist())),
                  edge_attrs={"weight": w.tolist()})

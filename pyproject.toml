@@ -22,6 +22,8 @@ dependencies = ["numpy>=1.21"]
 [project.optional-dependencies]
 # for profiling / benchmarks; not needed by people installing the wheel
 bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
+# find_communities(): igraph for both settings, leidenalg for leiden="paper"
+leiden = ["igraph", "leidenalg"]
 dev = ["pytest", "maturin>=1.7", "scipy"]
 
 [project.urls]

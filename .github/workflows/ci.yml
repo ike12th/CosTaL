@@ -77,6 +77,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # scipy: tests/test_knn.py compares bit for bit against the original scipy symmetrization
       - run: pip install --upgrade pip maturin pytest numpy scipy
+      # Optional: the find_communities tests skip if these have no wheel for this platform
+      - run: pip install igraph leidenalg || echo "igraph/leidenalg unavailable; their tests will skip"
       - run: pip install -e . --no-build-isolation
       - run: pytest -q
       - run: costal-plus info
