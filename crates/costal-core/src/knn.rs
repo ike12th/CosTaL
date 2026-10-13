@@ -17,8 +17,9 @@ use rayon::prelude::*;
 use crate::cache;
 use crate::matmul::{self, Matmul};
 
-/// Default column-block width. The row-block height comes from the cache budget (docs/06 §2.3).
-pub const DEFAULT_COL_BLOCK: usize = 1024;
+/// Bounds for the derived column-block width (docs/06 §2.3).
+const MIN_COL_BLOCK: usize = 256;
+const MAX_COL_BLOCK: usize = 1024;
 
 /// kNN parameters. `KnnParams::new(k)` gives defaults matching the published CosTaL.
 #[derive(Clone, Debug)]
@@ -29,7 +30,7 @@ pub struct KnnParams {
     pub margin: usize,
     /// Row-block height; `None` derives it from the cache budget.
     pub row_block: Option<usize>,
-    /// Column-block width; `None` uses [`DEFAULT_COL_BLOCK`].
+    /// Column-block width; `None` derives it from the cache budget.
     pub col_block: Option<usize>,
     pub matmul: Matmul,
     /// Norm-sorted working layout (docs/04 §2.3). Cosine selection doesn't need it but it is
@@ -341,12 +342,22 @@ fn run_blocked<S: Selector>(
 }
 
 /// Row-block height and column-block width.
+///
+/// Tiles are square-ish within the cache budget: the largest power of two `side` with
+/// `side² ≤ budget` sets the column width. Per-call matmul overhead favors large blocks on both
+/// sides, and the measured optimum sits near rows ≈ columns on both M1 / Accelerate and
+/// x86 / gemm (docs/03 §8.3, §8.5).
 fn block_sizes(n: usize, p: &KnnParams) -> (usize, usize) {
-    let cb = p.col_block.unwrap_or(DEFAULT_COL_BLOCK).clamp(1, n);
+    let budget = cache::tile_budget_bytes() / std::mem::size_of::<f32>();
+    let side = 1usize << (budget.max(1).ilog2() / 2);
+    let cb = p
+        .col_block
+        .unwrap_or(side.clamp(MIN_COL_BLOCK, MAX_COL_BLOCK))
+        .clamp(1, n);
     let rb = p
         .row_block
         .unwrap_or_else(|| {
-            let by_cache = cache::tile_budget_bytes() / (cb * std::mem::size_of::<f32>());
+            let by_cache = budget / cb;
             // Give each thread ~8 row blocks so work stealing can balance big and little cores
             // (docs/06 §4)
             let by_balance = n.div_ceil(rayon::current_num_threads() * 8);

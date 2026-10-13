@@ -60,6 +60,10 @@ mod imp {
     }
 
     pub fn l2_per_thread() -> Option<usize> {
+        sysctl().or_else(super::cpuid::l2_per_thread)
+    }
+
+    fn sysctl() -> Option<usize> {
         // L2 of the performance cores (perflevel0) and how many cores share it; older systems
         // without perflevel fall back to hw.l2cachesize
         let (size, sharing) = match (
@@ -77,14 +81,29 @@ mod imp {
 mod imp {
     use std::fs;
 
+    /// sysfs first; some VMs (e.g. GitHub's Azure runners) expose no cache directory, so fall
+    /// back to CPUID on x86 (docs/03 §8.5).
     pub fn l2_per_thread() -> Option<usize> {
-        for entry in fs::read_dir("/sys/devices/system/cpu/cpu0/cache").ok()? {
-            let dir = entry.ok()?.path();
+        sysfs().or_else(super::cpuid::l2_per_thread)
+    }
+
+    fn sysfs() -> Option<usize> {
+        for entry in fs::read_dir("/sys/devices/system/cpu/cpu0/cache")
+            .ok()?
+            .flatten()
+        {
+            let dir = entry.path();
             let read = |name: &str| fs::read_to_string(dir.join(name)).ok();
-            if read("level")?.trim() != "2" || read("type")?.trim() == "Instruction" {
+            let (Some(level), Some(kind), Some(size)) = (read("level"), read("type"), read("size"))
+            else {
+                continue;
+            };
+            if level.trim() != "2" || kind.trim() == "Instruction" {
                 continue;
             }
-            let size = super::parse_size(read("size")?.trim())?;
+            let Some(size) = super::parse_size(size.trim()) else {
+                continue;
+            };
             let sharing = read("shared_cpu_list")
                 .map(|s| super::count_cpus(s.trim()))
                 .unwrap_or(1)
@@ -95,10 +114,98 @@ mod imp {
     }
 }
 
-// Windows and others: use the fallback for now. Detection via GetLogicalProcessorInformationEx
-// is still to do (docs/06 §2.3).
+// Windows and everything else: CPUID on x86, the fallback elsewhere (docs/06 §2.3).
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 mod imp {
+    pub fn l2_per_thread() -> Option<usize> {
+        super::cpuid::l2_per_thread()
+    }
+}
+
+/// One cache level as described by a CPUID "deterministic cache parameters" leaf
+/// (Intel leaf 4 and AMD leaf 0x8000001D share the layout).
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CacheLeaf {
+    /// 0 = no more caches, 1 = data, 2 = instruction, 3 = unified.
+    kind: u32,
+    level: u32,
+    size: usize,
+    /// Logical processors sharing this cache.
+    sharing: usize,
+}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64", test))]
+fn decode_cache_leaf(eax: u32, ebx: u32, ecx: u32) -> CacheLeaf {
+    let ways = ((ebx >> 22) & 0x3ff) as usize + 1;
+    let partitions = ((ebx >> 12) & 0x3ff) as usize + 1;
+    let line = (ebx & 0xfff) as usize + 1;
+    let sets = ecx as usize + 1;
+    CacheLeaf {
+        kind: eax & 0x1f,
+        level: (eax >> 5) & 0x7,
+        size: ways * partitions * line * sets,
+        sharing: (((eax >> 14) & 0xfff) + 1) as usize,
+    }
+}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+mod cpuid {
+    #[cfg(target_arch = "x86")]
+    use core::arch::x86::{__cpuid, __cpuid_count, CpuidResult};
+    #[cfg(target_arch = "x86_64")]
+    use core::arch::x86_64::{__cpuid, __cpuid_count, CpuidResult};
+
+    // Vendor strings as (ebx, edx, ecx)
+    const AMD: [u32; 3] = [0x6874_7541, 0x6974_6e65, 0x444d_4163]; // "AuthenticAMD"
+    const HYGON: [u32; 3] = [0x6f67_7948, 0x6e65_476e, 0x656e_6975]; // "HygonGenuine"
+
+    #[allow(unused_unsafe)] // the intrinsics are safe fns on newer toolchains
+    fn cpuid(leaf: u32, sub: u32) -> CpuidResult {
+        // SAFETY: CPUID exists on every x86-64 CPU and on every x86 CPU Rust targets.
+        unsafe {
+            if sub == 0 {
+                __cpuid(leaf)
+            } else {
+                __cpuid_count(leaf, sub)
+            }
+        }
+    }
+
+    /// L2 bytes per logical processor from CPUID; `None` if the CPU doesn't report it.
+    pub fn l2_per_thread() -> Option<usize> {
+        let id = cpuid(0, 0);
+        let vendor = [id.ebx, id.edx, id.ecx];
+        let leaf = if vendor == AMD || vendor == HYGON {
+            let max_ext = cpuid(0x8000_0000, 0).eax;
+            if max_ext < 0x8000_001D {
+                // Older AMD: leaf 0x80000006 gives the per-core L2 size in KB, no sharing info
+                return (max_ext >= 0x8000_0006)
+                    .then(|| ((cpuid(0x8000_0006, 0).ecx >> 16) as usize) << 10)
+                    .filter(|&b| b > 0);
+            }
+            0x8000_001D
+        } else if id.eax >= 4 {
+            4
+        } else {
+            return None;
+        };
+        for sub in 0..16 {
+            let r = cpuid(leaf, sub);
+            let c = super::decode_cache_leaf(r.eax, r.ebx, r.ecx);
+            if c.kind == 0 {
+                break;
+            }
+            if c.level == 2 && c.kind != 2 {
+                return Some(c.size / c.sharing.max(1));
+            }
+        }
+        None
+    }
+}
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+mod cpuid {
     pub fn l2_per_thread() -> Option<usize> {
         None
     }
@@ -151,6 +258,32 @@ mod tests {
         assert_eq!(count_cpus("0"), 1);
         assert_eq!(count_cpus("0-3,8-11"), 8);
         assert_eq!(count_cpus("0,2"), 2);
+    }
+
+    #[test]
+    fn decodes_cpuid_cache_leaf() {
+        // A unified L2: 16 ways, 1 partition, 64-byte lines, 1024 sets = 1 MiB, shared by 2
+        let eax = 3 | (2 << 5) | (1 << 14);
+        let ebx = (15 << 22) | 63;
+        let c = decode_cache_leaf(eax, ebx, 1023);
+        assert_eq!(
+            c,
+            CacheLeaf {
+                kind: 3,
+                level: 2,
+                size: 1 << 20,
+                sharing: 2
+            }
+        );
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[test]
+    fn cpuid_l2_is_plausible() {
+        // Runs the real CPUID path; any x86 L2 per thread falls in this range
+        if let Some(b) = cpuid::l2_per_thread() {
+            assert!((16 << 10..=256 << 20).contains(&b), "{b}");
+        }
     }
 
     #[test]

@@ -10,7 +10,7 @@ import argparse
 import platform
 import sys
 
-from . import __version__, core_version, hello
+from . import __version__, core_version, default_matmul, hello, l2_bytes_per_thread, tile_budget_bytes
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +26,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"core version  : {core_version()}")
         print(f"python        : {sys.version.split()[0]}")
         print(f"platform      : {platform.platform()} / {platform.machine()}")
+        l2 = l2_bytes_per_thread()
+        print(f"matmul        : {default_matmul()}")
+        print(f"L2 per thread : {f'{l2 // 1024} KB' if l2 else 'unknown (using fallback)'}")
+        print(f"tile budget   : {tile_budget_bytes() // 1024} KB")
         return 0
     parser.print_help()
     return 1
