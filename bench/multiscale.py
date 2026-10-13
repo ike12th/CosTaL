@@ -29,13 +29,16 @@ next to every single resolution of the ensemble and the per-population oracle ab
 τ ∈ {0.6, 0.7, 0.8, 0.85, 0.9, 0.95}.
 
 Usage: python bench/multiscale.py [dataset ...]     (Levine_32, Levine_13, GSE84133, GSE74672)
-Output: bench/out/multiscale.json (merged per dataset)
+       MULTISCALE_LEIDEN=igraph python bench/multiscale.py ...   (igraph's native Leiden, 2 iterations)
+Output: bench/out/multiscale.json, or multiscale_igraph.json (merged per dataset)
 """
 
 from __future__ import annotations
 
 import json
 import multiprocessing as mp
+import os
+import random
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -53,7 +56,9 @@ from stage_c2 import build  # noqa: E402
 
 import costal_plus as cp  # noqa: E402
 
-OUT = HERE / "out" / "multiscale.json"
+IMPL = os.environ.get("MULTISCALE_LEIDEN", "leidenalg")
+assert IMPL in ("leidenalg", "igraph"), IMPL
+OUT = HERE / "out" / ("multiscale.json" if IMPL == "leidenalg" else "multiscale_igraph.json")
 K = 10
 RESOLUTIONS = [round(0.1 * 2 ** (i / 2), 3) for i in range(11)]  # 0.1 … 3.2
 SEEDS = range(4)
@@ -78,6 +83,11 @@ def _leiden(job: tuple[float, int]) -> np.ndarray:
     import leidenalg as la
 
     res, seed = job
+    if IMPL == "igraph":
+        random.seed(seed)
+        return np.asarray(_GRAPH.community_leiden(objective_function="modularity", weights="weight",
+                                                  resolution=res, n_iterations=N_ITERATIONS).membership,
+                          dtype=np.int32)
     return np.asarray(la.find_partition(_GRAPH, la.RBConfigurationVertexPartition, weights="weight",
                                         n_iterations=N_ITERATIONS, resolution_parameter=res,
                                         seed=seed).membership, dtype=np.int32)
@@ -85,7 +95,7 @@ def _leiden(job: tuple[float, int]) -> np.ndarray:
 
 def ensemble(name: str, x: np.ndarray) -> np.ndarray:
     """(len(RESOLUTIONS), len(SEEDS), n) memberships, cached."""
-    path = CACHE / f"multiscale_{name}.npz"
+    path = CACHE / f"multiscale_{name}{'' if IMPL == 'leidenalg' else '_igraph'}.npz"
     if path.exists():
         z = np.load(path)
         if z["resolutions"].tolist() == RESOLUTIONS and z["seeds"].tolist() == list(SEEDS):
@@ -284,7 +294,7 @@ def main(names: list[str]) -> None:
     for name in names:
         out["datasets"][name] = run(name)
         out.update(environment=environment(), k=K, resolutions=RESOLUTIONS, seeds=list(SEEDS),
-                   n_iterations=N_ITERATIONS, min_size=MIN_SIZE, nested=NESTED, proper=PROPER)
+                   leiden=IMPL, n_iterations=N_ITERATIONS, min_size=MIN_SIZE, nested=NESTED, proper=PROPER)
         OUT.write_text(json.dumps(out, indent=2))
         print(f"-> {OUT} ({name})", flush=True)
 

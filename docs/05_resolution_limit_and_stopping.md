@@ -255,10 +255,15 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 > - Sensitivity: φ_max 0.02–0.05 changes little on GSE84133 and Levine_32's F1; Levine_13 needs ≥ 0.03
 >   for the rare gain, GSE74672 is best at 0.02. So φ_max is a real knob, but a readable one ("at most
 >   4% of a sub-cluster's edge weight leaks into the rest of its parent").
-> - **Status: promising, not shipped.** Before it becomes an opt-in mode: rerun the ensemble with
->   igraph's Leiden (44 leidenalg runs cost ~2.5 min on 6 cores for 161k cells; igraph would be ~1 min
->   serial), add datasets with known rare populations (Samusik, Nilsson_rare — not available offline),
->   and decide how a user picks φ_max.
+> - **Same with igraph's Leiden** (`MULTISCALE_LEIDEN=igraph`, `bench/out/multiscale_igraph.json`),
+>   φ_max = 0.04 against igraph's own single resolutions: Levine_32 rarest-5 F1 0.62 vs 0.28 at the
+>   best-ARI resolution (ARI 0.88 vs 0.97); GSE84133 ARI 0.950 vs 0.945 with rare and large F1 at the
+>   oracle; Levine_13 rarest-5 0.31 vs 0.12–0.15 and mean F1 0.55 vs 0.51, ARI 0.79 vs 0.86; GSE74672
+>   below the best single resolution. The 44-run ensemble costs 80 s serial on 161k cells (leidenalg:
+>   ~2.5 min on 6 cores).
+> - **Status: promising, not shipped.** Before it becomes an opt-in mode: datasets with known rare
+>   populations (Samusik, Nilsson_rare — not available offline), and a way for users to pick φ_max (or
+>   to see which carved clusters depend on it).
 
 ### 2.4 Ranking
 
