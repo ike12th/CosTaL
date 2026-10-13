@@ -467,3 +467,44 @@ cheap, and it pays most on data whose magnitudes really vary, which is the data 
 meant for. Separately, the norm-sorted layout itself is what makes Tanimoto selection fast at all:
 without it, 161,443 cells take 34.9 s instead of 3.8 s (looser per-block thresholds). Cosine selection
 is unaffected (no window; the cone bounds of docs/04 §3 remain to do).
+
+## 10. The paper's other datasets (2026-10-13)
+
+> Loaders: `bench/datasets.py` (raw files on the external drive, `$COSTAL_DATA`; sources listed in the
+> module). Experiments: `bench/small_datasets.py`, numbers in `bench/out/small_datasets.json`.
+> Chosen by size, following the author's request to stay small: the four smallest scRNA-seq sets of
+> the paper's Table 2 and Levine_13; GSE110823 and 1M_neurons wait for the sparse backend (stage S),
+> Samusik / Nilsson / Mosmann / Giordani are not available offline.
+
+### 10.1 The original preprocessing is reproduced exactly
+
+`preprocess()` is the original `pp()` (`filter_cells(min_genes=200)` → `filter_genes(min_cells=3)` →
+2000 HVGs by `seurat_v3` → `log1p`), with scanpy 1.10.3 / scikit-misc 0.3.1. Against the paper's Table 2:
+
+| Dataset | Cells | Original features | Non-zeros (ours / paper) | Labels |
+|---|---:|---:|---|---|
+| E-MTAB-3321 (Goolam) | 124 | 41,480 | 144,499 / 144,499 ✓ | 5 stages (SDRF) |
+| GSE81861 (Li, cell lines) | 561 | 57,241 | 213,416 / 214,688 (−0.6%) | 7 cell lines |
+| GSE74672 (Romanov) | 2,881 | 24,341 | 821,520 / 821,520 ✓ | 7 `level1 class` |
+| GSE84133 (Baron, human3) | 3,605 | 20,125 | 792,390 / 792,390 ✓ | 14 `assigned_cluster` |
+| Levine_13 | 167,044 | 13 | 2,171,567 / 1,689,738 | 24 gated (81,747 cells) |
+
+- Three of four scRNA-seq sets match to the entry, so the paper's preprocessing, gene filter and HVG
+  selection are reproduced, and so are its cell counts (no cell fails `filter_cells`; the original
+  `pp()` returns only the matrix, which would misalign labels if one did — the loader tracks it).
+- GSE81861 differs at the HVG boundary (some of the 2000 genes differ; not a dtype effect — float32 / float64,
+  dense / sparse give the same set; RSEM's non-integer counts may meet `seurat_v3` differently across
+  scanpy versions).
+- **Levine_13 is open.** The notransform file has 29.26% negative entries and no zeros after
+  arcsinh, where the paper reports a sparsity of 22.188%; no threshold or rounding of this file gives
+  that number (for Levine_32 the paper's 26.999% is exactly the share of negatives, docs/04 §4). The
+  paper probably used another version of the file. **Question for the author.**
+
+### 10.2 Parity with the original on scRNA-seq
+
+On the paper preset, the original graph-building code (the `bc()` path) and CosTaL+ give **100%
+identical neighbor sets** on all four scRNA-seq sets, edge weights equal within 5×10⁻⁷ (float32
+input), and **identical Leiden partitions for every seed** at the paper's settings (resolution 0.8,
+10 iterations, 5 seeds; same-seed ARI 1.000 everywhere). Together with the golden run (docs/04 §4:
+`p_knng` is exact on non-negative input, and all of these are non-negative), CosTaL+ reproduces the
+published scRNA-seq pipeline.

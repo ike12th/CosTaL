@@ -386,6 +386,42 @@ comes from depth and how much from biology currently cannot be told apart — th
 > - **The resolution matters far more:** ARI spans 0.45–0.97 over 0.2–2.0, and docs/05 §1.1 shows why no
 >   single value is right (rare populations need a higher one than large populations).
 
+> **Measured on the paper's scRNA-seq sets (2026-10-13; `bench/small_datasets.py`, numbers in
+> `bench/out/small_datasets.json`; k = 10, leidenalg with the paper's 10 iterations, 5 seeds,
+> resolutions 0.05–2.0; data and labels in docs/03 §10).**
+>
+> Row norm under the paper preset (log1p of raw counts) and under `normalize_total`:
+>
+> | Dataset | ρ(‖x‖, total counts) paper → nt | η²(‖x‖ \| labels) paper → nt | η²(log total counts \| labels) |
+> |---|---|---|---:|
+> | E-MTAB-3321 | +0.88 → +0.38 | 0.55 → 0.77 | 0.13 |
+> | GSE81861 | +0.84 → +0.54 | 0.59 → 0.60 | 0.48 |
+> | GSE74672 | +0.93 → −0.26 | 0.07 → 0.59 | 0.21 |
+> | GSE84133 | +0.79 → +0.22 | 0.68 → 0.82 | 0.41 |
+>
+> The 2×2 (select/weight), ARI at each setup's best resolution, paper preset (`normalize_total` in
+> parentheses):
+>
+> | Dataset | cos/cos | **cos/tani (published)** | tani/cos | tani/tani |
+> |---|---:|---:|---:|---:|
+> | E-MTAB-3321 | 0.883 (0.883) | 0.883 (0.883) | 0.791 (0.883) | 0.883 (0.883) |
+> | GSE81861 | 1.000 (1.000) | 1.000 (1.000) | 1.000 (1.000) | 1.000 (1.000) |
+> | GSE74672 | 0.683 (0.676) | 0.662 (0.675) | 0.701 (0.702) | 0.704 (0.664) |
+> | GSE84133 | 0.939 (0.939) | 0.938 (0.945) | 0.933 (0.941) | 0.932 (0.943) |
+>
+> - **Under the paper preset the row norm is mostly sequencing depth** (ρ with total counts
+>   0.79–0.93), as §5.1 expected. `normalize_total` removes most of that, and what is left tracks the
+>   cell type more, not less (η² up on three of four sets; on GSE74672 from 0.07 to 0.59).
+> - **Still a tie.** At each setup's best resolution the four cells lie within 0.04 ARI of each other,
+>   with no consistent winner (GSE74672: Tanimoto selection +0.02–0.04 under the paper preset, −0.01 to
+>   +0.03 under `normalize_total`, against a seed SD of 0.01–0.05), except one small-sample case:
+>   E-MTAB-3321 (124 cells), tani/cos 0.79 vs 0.88, only under the paper preset. Magnitude carries
+>   label information here, but the direction already carries it too: Tanimoto adds no separable
+>   signal. Together with Levine_32, this is outcome 2 of §5 on five datasets. Defaults unchanged.
+> - **Selection changes the neighbors more under the paper preset** (mean Jaccard between cosine and
+>   Tanimoto neighbor sets 0.46–0.74) than under `normalize_total` (0.84–0.94): the depth term is what
+>   Tanimoto selection mostly reacts to.
+
 ---
 
 ## 6. API shape
@@ -506,6 +542,22 @@ does not map to 0, and all cells share a positive offset, so cosine's origin los
 - **No CPM preset**: Ahlmann-Eltze & Huber 2023 and the scverse best practices both explicitly advise against feeding CPM into a shifted log.
 - Compare the two with the §5.1 experiment. If the new preset wins, change the default via route (b) of §6.5 and bump the major version.
 - Preprocessing stays on the Python side (docs/03 §6.1); this is just one more preset.
+
+> **Implemented and measured (2026-10-13).** `costal_plus.preprocess(X, platform, preset=...)`
+> (`compat="paper"` refuses `normalize_total`). Published combination (cosine selection, Tanimoto
+> weights), mean ARI over the resolution grid 0.05–2.0 and ARI at the paper's 0.8, paper → `normalize_total`:
+>
+> | Dataset | Mean ARI over the grid | ARI at 0.8 | Best ARI |
+> |---|---|---|---|
+> | E-MTAB-3321 | 0.627 → 0.678 | 0.687 → 0.687 | 0.883 → 0.883 |
+> | GSE81861 | 0.958 → 0.988 | 1.000 → 1.000 | 1.000 → 1.000 |
+> | GSE74672 | 0.478 → 0.487 | 0.473 → 0.476 | 0.662 → 0.675 |
+> | GSE84133 | 0.829 → 0.860 | 0.857 → 0.939 | 0.938 → 0.945 |
+>
+> `normalize_total` is never worse and is less sensitive to the resolution (higher on the grid mean on
+> all four; +0.08 at the paper's 0.8 on GSE84133). The gain is modest and the best ARI is unchanged, so
+> under versioning policy (b) it stays an opt-in preset; it is the first candidate if a v2 ever
+> changes defaults.
 
 ### 6.8 An unverified design direction: an external magnitude vector
 
