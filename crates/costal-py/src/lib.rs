@@ -5,7 +5,7 @@
 //! package itself; the public API is on the Python side (`python/costal_plus/_api.py`), together
 //! with argument validation and input diagnostics.
 
-use costal_core::knn::{self, Knn, KnnParams};
+use costal_core::knn::{self, Knn, KnnParams, Select};
 use costal_core::matmul::Matmul;
 use costal_core::weight::{self, Weight};
 use costal_core::{cache, graph};
@@ -96,14 +96,24 @@ fn row_l2_norms<'py>(
     Ok(PyArray1::from_vec(py, norms))
 }
 
+fn parse_select(select: Option<&str>) -> PyResult<Select> {
+    match select {
+        None => Ok(Select::Cosine),
+        Some(name) => {
+            Select::from_name(name).ok_or_else(|| value_err(format!("unknown select {name:?}")))
+        }
+    }
+}
+
 /// Exact kNN (fused blocked coarse selection + f64 rescoring). Returns (idx, cos, norms, stats).
 #[pyfunction]
-#[pyo3(signature = (x, k, *, margin=None, row_block=None, col_block=None, matmul=None, sort_by_norm=true, n_threads=None))]
+#[pyo3(signature = (x, k, *, select=None, margin=None, row_block=None, col_block=None, matmul=None, sort_by_norm=true, n_threads=None))]
 #[allow(clippy::too_many_arguments)]
 fn _knn_exact<'py>(
     py: Python<'py>,
     x: PyReadonlyArray2<'py, f32>,
     k: usize,
+    select: Option<&str>,
     margin: Option<usize>,
     row_block: Option<usize>,
     col_block: Option<usize>,
@@ -122,6 +132,7 @@ fn _knn_exact<'py>(
             .ok_or_else(|| value_err(format!("unknown matmul backend {name:?}")))?,
     };
     let params = KnnParams {
+        select: parse_select(select)?,
         margin: margin.unwrap_or(k),
         row_block,
         col_block,
@@ -142,23 +153,30 @@ fn _knn_exact<'py>(
     stats.set_item("col_block", st.col_block)?;
     stats.set_item("matmul", backend.name())?;
     stats.set_item("margin", params.margin)?;
+    stats.set_item("select", params.select.name())?;
     Ok((knn_to_py(py, result)?, stats))
 }
 
 /// Golden reference: brute-force kNN with no blocking, no pruning, f64 throughout (tests and
 /// benchmarks only).
 #[pyfunction]
-#[pyo3(signature = (x, k, *, n_threads=None))]
+#[pyo3(signature = (x, k, *, select=None, n_threads=None))]
 fn _knn_bruteforce<'py>(
     py: Python<'py>,
     x: PyReadonlyArray2<'py, f32>,
     k: usize,
+    select: Option<&str>,
     n_threads: Option<usize>,
 ) -> PyResult<KnnArrays<'py>> {
     let (n, d) = x.as_array().dim();
     let slice = x.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    let select = parse_select(select)?;
     let result = py
-        .detach(|| with_threads(n_threads, || knn::knn_bruteforce(slice, n, d, k)))?
+        .detach(|| {
+            with_threads(n_threads, || {
+                knn::knn_bruteforce_select(slice, n, d, k, select)
+            })
+        })?
         .map_err(value_err)?;
     knn_to_py(py, result)
 }

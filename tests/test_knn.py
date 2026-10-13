@@ -108,6 +108,46 @@ def test_public_knn_and_truncate():
     )
 
 
+def scaled_clusters(n, d, seed):
+    """Clustered data whose rows are rescaled, so magnitude matters and Tanimoto != cosine."""
+    x = clustered(n, d, seed)
+    x *= np.random.default_rng(seed + 100).uniform(0.5, 3.0, size=(n, 1)).astype(np.float32)
+    return np.ascontiguousarray(x)
+
+
+def test_tanimoto_selection_matches_bruteforce():
+    x = scaled_clusters(1500, 12, 14)
+    got, stats = ext._knn_exact(x, 10, select="tanimoto")
+    assert stats["select"] == "tanimoto"
+    assert_same_knn(got, ext._knn_bruteforce(x, 10, select="tanimoto"))
+    # ... and differs from cosine selection on this data
+    assert not np.array_equal(got[0], ext._knn_exact(x, 10)[0][0])
+
+
+def test_tanimoto_matches_independent_numpy_oracle():
+    x = scaled_clusters(1000, 10, 15)
+    idx, cos, norms = ext._knn_exact(x, 8, select="tanimoto")[0]
+    x64 = x.astype(np.float64)
+    dot = x64 @ x64.T
+    sq = np.einsum("ij,ij->i", x64, x64)
+    t = dot / (sq[:, None] + sq[None, :] - dot)
+    np.fill_diagonal(t, -np.inf)
+    want = -np.sort(-t, axis=1)[:, :8]
+    got = np.take_along_axis(t, idx.astype(np.int64), axis=1)
+    np.testing.assert_allclose(got, want, rtol=0, atol=1e-12)
+
+
+def test_public_tanimoto_defaults_to_raw_and_l2_short_circuits():
+    x = scaled_clusters(600, 8, 16)
+    g = cp.knn(x, 6, select="tanimoto")
+    assert g.meta["normalize"] == "none" and g.meta["select_effective"] == "tanimoto"
+    np.testing.assert_array_equal(g.idx, ext._knn_bruteforce(x, 6, select="tanimoto")[0])
+    with pytest.warns(cp.CostalWarning, match="equivalent to cosine"):
+        g2 = cp.knn(x, 6, select="tanimoto", normalize="l2")
+    assert g2.meta["select_effective"] == "cosine"
+    np.testing.assert_array_equal(g2.idx, cp.knn(x, 6).idx)
+
+
 def test_input_validation():
     x = clustered(50, 4, 7)
     with pytest.raises(ValueError):
@@ -118,8 +158,8 @@ def test_input_validation():
     bad[3, 1] = np.nan
     with pytest.raises(ValueError, match="NaN"):
         cp.knn(bad, 5)
-    with pytest.raises(NotImplementedError):
-        cp.knn(x, 5, select="tanimoto")
+    with pytest.raises(ValueError):
+        cp.knn(x, 5, select="jaccard")
     with pytest.raises(ValueError):
         cp.knn(x, 5, compat="nope")
     sp = pytest.importorskip("scipy.sparse")

@@ -16,6 +16,7 @@ use rayon::prelude::*;
 
 use crate::cache;
 use crate::matmul::{self, Matmul};
+use crate::weight;
 
 /// Bounds for the derived column-block width (docs/06 §2.3).
 const MIN_COL_BLOCK: usize = 256;
@@ -26,6 +27,8 @@ const MAX_COL_BLOCK: usize = 1024;
 pub struct KnnParams {
     /// Neighbors per row, excluding the row itself (docs/04 §0.0 item 4).
     pub k: usize,
+    /// Selection metric (docs/04 §0). The published CosTaL selects by cosine.
+    pub select: Select,
     /// Coarse-selection margin m: each row keeps top-(k+m) for f64 rescoring (docs/06 §1.2).
     pub margin: usize,
     /// Row-block height; `None` derives it from the cache budget.
@@ -42,6 +45,7 @@ impl KnnParams {
     pub fn new(k: usize) -> Self {
         Self {
             k,
+            select: Select::Cosine,
             margin: k,
             row_block: None,
             col_block: None,
@@ -51,12 +55,39 @@ impl KnnParams {
     }
 }
 
+/// Selection metric (docs/04 §0).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Select {
+    /// Cosine on L2-normalized rows — the published CosTaL.
+    Cosine,
+    /// Tanimoto on the raw rows, `T = a·b / (‖a‖² + ‖b‖² − a·b)` (stage A+, docs/04 §2).
+    Tanimoto,
+}
+
+impl Select {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "cosine" => Some(Select::Cosine),
+            "tanimoto" => Some(Select::Tanimoto),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Select::Cosine => "cosine",
+            Select::Tanimoto => "tanimoto",
+        }
+    }
+}
+
 /// kNN result, all in original row order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Knn {
     pub n: usize,
     pub k: usize,
-    /// Row-major n×k original indices; each row sorted by (cos desc, index asc).
+    /// Row-major n×k original indices; each row sorted by (selection score desc, index asc),
+    /// where the score is the cosine for [`Select::Cosine`] and Tanimoto for [`Select::Tanimoto`].
     pub idx: Vec<u32>,
     /// Row-major n×k cosine after f64 rescoring.
     pub cos: Vec<f64>,
@@ -94,11 +125,13 @@ impl std::error::Error for KnnError {}
 /// Comparator for the selection metric (docs/04 §1). The inner loop is monomorphized over it,
 /// with a single `match` at the entry point.
 ///
-/// Stage A has only [`Cosine`]. Tanimoto arrives in stage A+: `tile_threshold` gives a
-/// conservative threshold from the column block's smallest norm (columns are sorted by norm
-/// ascending, so the minimum is at `col_start`), and `score` computes the exact score on the
-/// rare path (docs/04 §2).
+/// [`Cosine`] runs on L2-normalized rows, and its tile value is the score itself. [`Tanimoto`]
+/// runs on raw rows: its tile value is the raw dot product, `tile_threshold` gives a
+/// conservative bound from the column block's norm extremes, and `score` computes T on the rare
+/// path (docs/04 §2).
 pub trait Selector: Sync {
+    /// Whether coarse selection runs on L2-normalized rows (otherwise on raw rows).
+    const NORMALIZED: bool;
     /// Per-row precomputed constants.
     type RowState: Copy;
     fn row_state(&self, row: usize) -> Self::RowState;
@@ -110,12 +143,16 @@ pub trait Selector: Sync {
     fn score(&self, st: Self::RowState, col: usize, sim: f32) -> f32;
     /// Rescoring score (f64), from the rescored cosine and both raw norms.
     fn rescore(&self, cos: f64, norm_i: f64, norm_j: f64) -> f64;
+    /// Upper bound on |f32 coarse score − exact score| for `d`-dimensional rows; it drives the
+    /// fallback check in `finalize_row`.
+    fn coarse_eps(&self, d: usize) -> f64;
 }
 
 /// Select neighbors by cosine — the selection metric of the published CosTaL.
 pub struct Cosine;
 
 impl Selector for Cosine {
+    const NORMALIZED: bool = true;
     type RowState = ();
     #[inline(always)]
     fn row_state(&self, _row: usize) {}
@@ -130,6 +167,94 @@ impl Selector for Cosine {
     #[inline(always)]
     fn rescore(&self, cos: f64, _norm_i: f64, _norm_j: f64) -> f64 {
         cos
+    }
+    /// Normalizing to f32 (relative error ≤ u) plus an f32 dot product in any summation order
+    /// (≤ γ_d) is on the order of (d+2)·u; we use (d+4)·2⁻²³, a 2× margin.
+    fn coarse_eps(&self, d: usize) -> f64 {
+        (d as f64 + 4.0) * f64::from(f32::EPSILON)
+    }
+}
+
+/// Select neighbors by Tanimoto on the raw rows (stage A+, docs/04 §2).
+///
+/// With `cᵢ = τᵢ/(1+τᵢ)`, a candidate can beat the heap threshold τᵢ only if its raw dot product
+/// exceeds `cᵢ·(Aᵢ + Bⱼ)`. Within a column block this is bounded below by `cᵢ·(Aᵢ + B_min)` when
+/// `cᵢ ≥ 0` and by `cᵢ·(Aᵢ + B_max)` when `cᵢ < 0` (docs/04 §2.4), so the inner loop stays a single
+/// comparison and T itself is computed only on the rare path. The block extremes are
+/// precomputed, so this holds with or without the norm-sorted layout.
+pub struct Tanimoto {
+    /// Squared norms in working order, f32.
+    norm_sq: Vec<f32>,
+    /// Smallest / largest squared norm per column block of width `cb`.
+    block_min: Vec<f32>,
+    block_max: Vec<f32>,
+    cb: usize,
+}
+
+impl Tanimoto {
+    fn new(perm: &[u32], norms: &[f64], cb: usize) -> Self {
+        let norm_sq: Vec<f32> = perm
+            .iter()
+            .map(|&o| (norms[o as usize] * norms[o as usize]) as f32)
+            .collect();
+        let (block_min, block_max) = norm_sq
+            .chunks(cb.max(1))
+            .map(|c| {
+                c.iter()
+                    .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &v| {
+                        (lo.min(v), hi.max(v))
+                    })
+            })
+            .unzip();
+        Self {
+            norm_sq,
+            block_min,
+            block_max,
+            cb: cb.max(1),
+        }
+    }
+}
+
+impl Selector for Tanimoto {
+    const NORMALIZED: bool = false;
+    /// Aᵢ, the row's squared norm.
+    type RowState = f32;
+    #[inline(always)]
+    fn row_state(&self, row: usize) -> f32 {
+        self.norm_sq[row]
+    }
+    #[inline(always)]
+    fn tile_threshold(&self, a: f32, tau: f32, col_start: usize) -> f32 {
+        if tau == f32::NEG_INFINITY {
+            return f32::NEG_INFINITY;
+        }
+        // T ≥ −1/3, so 1 + τ > 0 and c has the sign of τ
+        let c = tau / (1.0 + tau);
+        let block = col_start / self.cb;
+        let b = if c >= 0.0 {
+            self.block_min[block]
+        } else {
+            self.block_max[block]
+        };
+        c * (a + b)
+    }
+    #[inline(always)]
+    fn score(&self, a: f32, col: usize, dot: f32) -> f32 {
+        let den = a + self.norm_sq[col] - dot;
+        if dot == 0.0 || den <= 0.0 {
+            0.0
+        } else {
+            dot / den
+        }
+    }
+    #[inline(always)]
+    fn rescore(&self, cos: f64, norm_i: f64, norm_j: f64) -> f64 {
+        weight::tani_from_cos(norm_i, norm_j, cos)
+    }
+    /// |Δd| ≤ γ_d·‖a‖‖b‖ ≤ γ_d·(A+B)/2 and ∂T/∂d = (A+B)/(A+B−d)² ≤ 4/(A+B), so |ΔT| ≤ 2γ_d,
+    /// plus a few roundings in the f32 squared norms and the division; we use 2·(d+8)·2⁻²³.
+    fn coarse_eps(&self, d: usize) -> f64 {
+        2.0 * (d as f64 + 8.0) * f64::from(f32::EPSILON)
     }
 }
 
@@ -202,7 +327,7 @@ pub struct KnnStats {
     pub col_block: usize,
 }
 
-/// Exact kNN, selecting neighbors by cosine (stage A).
+/// Exact kNN by the selection metric in `params.select` (cosine: stage A; Tanimoto: stage A+).
 pub fn knn_exact(x: &[f32], n: usize, d: usize, params: &KnnParams) -> Result<Knn, KnnError> {
     knn_exact_with_stats(x, n, d, params).map(|(knn, _)| knn)
 }
@@ -218,15 +343,19 @@ pub fn knn_exact_with_stats(
     if !params.matmul.is_available() {
         return Err(KnnError::MatmulUnavailable(params.matmul.name()));
     }
-    Ok(run_blocked(&Cosine, x, n, d, params))
+    Ok(match params.select {
+        Select::Cosine => run_blocked(x, n, d, params, |_, _, _| Cosine),
+        Select::Tanimoto => run_blocked(x, n, d, params, Tanimoto::new),
+    })
 }
 
 /// Read-only state shared by all threads within one call.
 struct Ctx<'a, S> {
     sel: &'a S,
     x: &'a [f32],
-    /// L2-normalized f32 copy in working order, used only for coarse selection.
-    xn: &'a [f32],
+    /// f32 copy in working order, used only for coarse selection: L2-normalized for cosine,
+    /// raw for Tanimoto ([`Selector::NORMALIZED`]).
+    xs: &'a [f32],
     norms: &'a [f64],
     /// Working order → original order.
     perm: &'a [u32],
@@ -236,18 +365,16 @@ struct Ctx<'a, S> {
     cap: usize,
     cb: usize,
     backend: Matmul,
-    /// Upper bound on |f32 coarse value − true cosine|. Normalizing to f32 (relative error ≤ u)
-    /// plus an f32 dot product in any summation order (≤ γ_d) is on the order of (d+2)·u; we use
-    /// (d+4)·2⁻²³, a 2× margin.
+    /// Upper bound on |f32 coarse score − exact score| ([`Selector::coarse_eps`]).
     eps: f64,
 }
 
 fn run_blocked<S: Selector>(
-    sel: &S,
     x: &[f32],
     n: usize,
     d: usize,
     p: &KnnParams,
+    make: impl FnOnce(&[u32], &[f64], usize) -> S,
 ) -> (Knn, KnnStats) {
     let k = p.k;
     let norms = row_norms64(x, n, d);
@@ -259,24 +386,30 @@ fn run_blocked<S: Selector>(
         perm.sort_by(|&a, &b| norms[a as usize].total_cmp(&norms[b as usize]));
     }
 
-    let mut xn = vec![0.0f32; n * d];
-    xn.par_chunks_mut(d.max(1))
+    let mut xs = vec![0.0f32; n * d];
+    xs.par_chunks_mut(d.max(1))
         .zip(perm.par_iter())
         .for_each(|(dst, &orig)| {
             let o = orig as usize;
+            let src = &x[o * d..(o + 1) * d];
+            if !S::NORMALIZED {
+                dst.copy_from_slice(src);
+                return;
+            }
             let nrm = norms[o];
             if nrm > 0.0 {
-                for (v, &s) in dst.iter_mut().zip(&x[o * d..(o + 1) * d]) {
+                for (v, &s) in dst.iter_mut().zip(src) {
                     *v = (f64::from(s) / nrm) as f32;
                 }
             }
         });
 
     let (rb, cb) = block_sizes(n, p);
+    let sel = make(&perm, &norms, cb);
     let ctx = Ctx {
-        sel,
+        sel: &sel,
         x,
-        xn: &xn,
+        xs: &xs,
         norms: &norms,
         perm: &perm,
         n,
@@ -285,7 +418,7 @@ fn run_blocked<S: Selector>(
         cap: (k + p.margin).min(n - 1),
         cb,
         backend: p.matmul,
-        eps: (d as f64 + 4.0) * f64::from(f32::EPSILON),
+        eps: sel.coarse_eps(d),
     };
     let fallbacks = AtomicUsize::new(0);
     let mut w_idx = vec![0u32; n * k];
@@ -394,12 +527,12 @@ impl<S: Selector> Ctx<'_, S> {
     fn coarse_block(&self, r0: usize, rows: usize, scr: &mut Scratch) {
         let d = self.d;
         scr.heaps.reset();
-        let a = &self.xn[r0 * d..(r0 + rows) * d];
+        let a = &self.xs[r0 * d..(r0 + rows) * d];
         let mut c0 = 0;
         while c0 < self.n {
             let cols = self.cb.min(self.n - c0);
             let tile = &mut scr.tile[..rows * cols];
-            let b = &self.xn[c0 * d..(c0 + cols) * d];
+            let b = &self.xs[c0 * d..(c0 + cols) * d];
             matmul::tile_nt(self.backend, a, rows, b, cols, d, tile);
             for r in 0..rows {
                 let st = self.sel.row_state(r0 + r);
@@ -412,14 +545,12 @@ impl<S: Selector> Ctx<'_, S> {
 
     /// Rescore one row; returns whether the fallback path was taken.
     ///
-    /// Every candidate that never entered the heap has an f32 value no greater than the heap
-    /// root (the coarse threshold), so its true cosine is at most threshold + ε. As long as the
+    /// Every candidate that never entered the heap has an f32 score no greater than the heap
+    /// root (the coarse threshold), so its exact score is at most threshold + ε. As long as the
     /// rescored k-th score is strictly above that bound, no such candidate can enter the top k
     /// or tie, and the result is exact. Otherwise the whole row is regathered — every candidate
-    /// with f32 value ≥ k-th score − ε (all candidates with true cosine ≥ the k-th score are
-    /// among them) — and rescored together.
-    ///
-    /// The bound is derived for cosine; stage A+ must re-derive it for Tanimoto scores.
+    /// with f32 score ≥ k-th score − ε (all candidates with exact score ≥ the k-th score are
+    /// among them) — and rescored together. ε comes from [`Selector::coarse_eps`].
     fn finalize_row(
         &self,
         w_row: usize,
@@ -454,21 +585,22 @@ impl<S: Selector> Ctx<'_, S> {
         fell_back
     }
 
-    /// Fallback: rescan all columns for one row, gather candidates with f32 value ≥ `min_sim`, and rescore them.
+    /// Fallback: rescan all columns for one row, gather candidates with f32 score ≥ `min_sim`, and rescore them.
     fn gather_row(&self, w_row: usize, min_sim: f64, scr: &mut Scratch) {
         let d = self.d;
         let i = self.perm[w_row] as usize;
         let Scratch { tile, cands, .. } = scr;
         cands.clear();
-        let a = &self.xn[w_row * d..(w_row + 1) * d];
+        let a = &self.xs[w_row * d..(w_row + 1) * d];
+        let st = self.sel.row_state(w_row);
         let mut c0 = 0;
         while c0 < self.n {
             let cols = self.cb.min(self.n - c0);
-            let b = &self.xn[c0 * d..(c0 + cols) * d];
+            let b = &self.xs[c0 * d..(c0 + cols) * d];
             matmul::tile_nt(self.backend, a, 1, b, cols, d, &mut tile[..cols]);
             for (t, &v) in tile[..cols].iter().enumerate() {
                 let wj = c0 + t;
-                if wj != w_row && f64::from(v) >= min_sim {
+                if wj != w_row && f64::from(self.sel.score(st, wj, v)) >= min_sim {
                     self.push_rescored(i, wj, cands);
                 }
             }
@@ -608,10 +740,25 @@ impl BlockHeaps {
     }
 }
 
-/// Golden reference: no blocking, no pruning, f64 throughout (layer L2 of docs/04 §4).
-/// O(N²·d); for tests and benchmarks only.
+/// Golden reference: no blocking, no pruning, f64 throughout (layer L2 of docs/04 §4), cosine
+/// selection. O(N²·d); for tests and benchmarks only.
 pub fn knn_bruteforce(x: &[f32], n: usize, d: usize, k: usize) -> Result<Knn, KnnError> {
+    knn_bruteforce_select(x, n, d, k, Select::Cosine)
+}
+
+/// Golden reference for any selection metric: ranks every candidate by its exact f64 score.
+pub fn knn_bruteforce_select(
+    x: &[f32],
+    n: usize,
+    d: usize,
+    k: usize,
+    select: Select,
+) -> Result<Knn, KnnError> {
     validate(x, n, d, k)?;
+    let score = |c: f64, ni: f64, nj: f64| match select {
+        Select::Cosine => c,
+        Select::Tanimoto => weight::tani_from_cos(ni, nj, c),
+    };
     let norms = row_norms64(x, n, d);
     let mut idx = vec![0u32; n * k];
     let mut cos = vec![0.0f64; n * k];
@@ -620,17 +767,15 @@ pub fn knn_bruteforce(x: &[f32], n: usize, d: usize, k: usize) -> Result<Knn, Kn
         .enumerate()
         .for_each(|(i, (oi, oc))| {
             let xi = &x[i * d..(i + 1) * d];
-            let mut all: Vec<(f64, u32)> = (0..n)
+            let mut all: Vec<(f64, f64, u32)> = (0..n)
                 .filter(|&j| j != i)
                 .map(|j| {
-                    (
-                        cos64(dot64(xi, &x[j * d..(j + 1) * d]), norms[i], norms[j]),
-                        j as u32,
-                    )
+                    let c = cos64(dot64(xi, &x[j * d..(j + 1) * d]), norms[i], norms[j]);
+                    (score(c, norms[i], norms[j]), c, j as u32)
                 })
                 .collect();
-            all.sort_unstable_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
-            for (t, &(c, j)) in all.iter().take(k).enumerate() {
+            sort_cands(&mut all);
+            for (t, &(_, c, j)) in all.iter().take(k).enumerate() {
                 oi[t] = j;
                 oc[t] = c;
             }
@@ -785,6 +930,55 @@ mod tests {
             knn_exact(&y, 4, 3, &params(1)),
             Err(KnnError::NonFinite { row: 2 })
         );
+    }
+
+    fn tanimoto(k: usize) -> KnnParams {
+        KnnParams {
+            select: Select::Tanimoto,
+            ..KnnParams::new(k)
+        }
+    }
+
+    #[test]
+    fn tanimoto_matches_bruteforce_exactly() {
+        // Rows scaled by different factors, so magnitude matters and Tanimoto ≠ cosine
+        let (n, d, k) = (1200, 16, 10);
+        let mut x = clustered(n, d, 6);
+        for (e, v) in x.iter_mut().enumerate() {
+            *v *= 1.0 + ((e / d) % 7) as f32 * 0.4;
+        }
+        let want = knn_bruteforce_select(&x, n, d, k, Select::Tanimoto).unwrap();
+        assert_ne!(want.idx, knn_bruteforce(&x, n, d, k).unwrap().idx);
+        for backend in [Matmul::Gemm, Matmul::platform_default()] {
+            for (rb, cb) in [(1, 7), (16, 128), (300, 2000)] {
+                for sort in [false, true] {
+                    let p = KnnParams {
+                        row_block: Some(rb),
+                        col_block: Some(cb),
+                        matmul: backend,
+                        sort_by_norm: sort,
+                        ..tanimoto(k)
+                    };
+                    let got = knn_exact(&x, n, d, &p).unwrap();
+                    assert_eq!(got, want, "{backend:?} rb={rb} cb={cb} sort={sort}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tanimoto_ties_zero_rows_and_signed_data() {
+        // Small integers in [-1, 2): many exact ties, negative entries, some zero rows
+        let (n, d, k) = (400, 6, 12);
+        let mut g = Lcg(7);
+        let mut x: Vec<f32> = (0..n * d)
+            .map(|_| (g.next_f32() * 3.0).floor() - 1.0)
+            .collect();
+        for row in [0usize, 57, 399] {
+            x[row * d..(row + 1) * d].fill(0.0);
+        }
+        let want = knn_bruteforce_select(&x, n, d, k, Select::Tanimoto).unwrap();
+        assert_eq!(knn_exact(&x, n, d, &tanimoto(k)).unwrap(), want);
     }
 
     #[test]

@@ -54,18 +54,19 @@ class KnnGraph:
 _WEIGHTS = ("tanimoto", "cosine", "jaccard")
 
 
-def _check_choices(select: str, normalize: str, backend: str, compat: str | None) -> None:
+def _check_choices(
+    select: str, normalize: str | None, backend: str, compat: str | None
+) -> str:
+    """Validate the knobs and return the effective normalization."""
     if compat not in (None, "paper"):
         raise ValueError(f"compat must be None or 'paper', got {compat!r}")
-    if select == "tanimoto":
-        raise NotImplementedError("select='tanimoto' arrives in stage A+ (docs/04 §7)")
-    if select != "cosine":
+    if select not in ("cosine", "tanimoto"):
         raise ValueError(f"select must be 'cosine' or 'tanimoto', got {select!r}")
-    if normalize == "none":
-        raise NotImplementedError(
-            "normalize='none' only matters with select='tanimoto'; it arrives in stage A+ (docs/04 §0)"
-        )
-    if normalize != "l2":
+    if normalize is None:
+        # Cosine is scale-invariant, so L2 is just its natural description; Tanimoto selection
+        # only means something on the raw magnitudes (docs/04 §0.1)
+        normalize = "l2" if select == "cosine" else "none"
+    if normalize not in ("l2", "none"):
         raise ValueError(f"normalize must be 'l2' or 'none', got {normalize!r}")
     if backend in ("approx", "hnsw"):
         raise NotImplementedError("approximate backends are stage E and never enter the default path (docs/03 §6)")
@@ -73,6 +74,7 @@ def _check_choices(select: str, normalize: str, backend: str, compat: str | None
         raise NotImplementedError("the sparse backend is stage S (docs/06 §5)")
     if backend != "exact":
         raise ValueError(f"backend must be 'exact', got {backend!r}")
+    return normalize
 
 
 def _as_matrix(X: Any) -> np.ndarray:
@@ -113,31 +115,46 @@ def knn(
     k: int = 10,
     *,
     select: str = "cosine",
-    normalize: str = "l2",
+    normalize: str | None = None,
     backend: str = "exact",
     compat: str | None = None,
     n_threads: int | None = None,
 ) -> KnnGraph:
     """Exact kNN (docs/04 §6.1).
 
-    Selects each row's k neighbors by cosine (excluding the row itself). All N² similarities are
+    Selects each row's k neighbors (excluding the row itself) by cosine — the published CosTaL —
+    or by Tanimoto on the raw rows (``select="tanimoto"``, docs/04 §2). All N² similarities are
     computed, and the final ranking comes from fixed-order f64 recomputation: results are
     bit-identical across platforms and thread counts (docs/06 §1).
 
     Args:
         X: ``(n, d)`` dense real-valued matrix, converted to float32 internally.
         k: neighbors per row, ``1 ≤ k ≤ n-1``.
+        select: ``"cosine"`` (default) or ``"tanimoto"``.
+        normalize: ``"l2"`` or ``"none"``; defaults to ``"l2"`` for cosine and ``"none"`` for
+            Tanimoto. Tanimoto on L2-normalized rows is a monotone function of cosine, so
+            ``select="tanimoto", normalize="l2"`` runs cosine and warns (docs/04 §0.1).
         compat: ``"paper"`` explicitly pins the semantics of the published CosTaL (docs/04 §6.5).
             The defaults currently are the paper's semantics; this only records the intent in
             the metadata.
         n_threads: number of threads; ``None`` uses all cores.
     """
-    _check_choices(select, normalize, backend, compat)
+    normalize = _check_choices(select, normalize, backend, compat)
+    effective = select
+    if select == "tanimoto" and normalize == "l2":
+        warnings.warn(
+            "select='tanimoto' with normalize='l2' is equivalent to cosine selection (on unit rows "
+            "T = c/(2−c) is monotone in c); running cosine (docs/04 §0.1)",
+            CostalWarning,
+            stacklevel=2,
+        )
+        effective = "cosine"
     X = _as_matrix(X)
-    (idx, cos, norms), stats = _ext._knn_exact(X, int(k), n_threads=n_threads)
+    (idx, cos, norms), stats = _ext._knn_exact(X, int(k), select=effective, n_threads=n_threads)
     meta = {
         "k": int(k),
         "select": select,
+        "select_effective": effective,
         "normalize": normalize,
         "backend": backend,
         "compat": compat,
@@ -145,6 +162,9 @@ def knn(
         "stats": dict(stats),
         "diagnostics": _diagnose(X),
     }
+    if effective == "tanimoto":
+        # The selection itself uses magnitude here, so warn now rather than at reweight()
+        _warn_about_magnitude(meta)
     return KnnGraph(idx=idx, cos=cos, norms=norms, meta=meta)
 
 
@@ -217,7 +237,7 @@ def build_graph(
     *,
     select: str = "cosine",
     weight: str = "tanimoto",
-    normalize: str = "l2",
+    normalize: str | None = None,
     backend: str = "exact",
     symmetrize: str = "fuzzy_union",
     compat: str | None = None,

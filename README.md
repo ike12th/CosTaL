@@ -17,8 +17,11 @@ https://doi.org/10.1093/bib/bbad157
 
 ## Status
 
-**Stage A is done (v0.1.0)**: exact kNN + edge weights + symmetrization are in Rust; Leiden
-still uses `leidenalg` (docs/03 §5). No optional arguments = the published CosTaL.
+**Stages A, A+ and C are done (v0.1.0)**: exact kNN (cosine, or Tanimoto with
+`select="tanimoto"`) + edge weights + symmetrization are in Rust; Leiden still uses `leidenalg`
+(docs/03 §5). No optional arguments = the published CosTaL. Stage C measured that 2 Leiden
+iterations reproduce the paper's 10 at a third of the cost, and igraph's native Leiden is 38×
+faster (docs/03 §9).
 
 ```python
 import costal_plus, igraph, leidenalg as la

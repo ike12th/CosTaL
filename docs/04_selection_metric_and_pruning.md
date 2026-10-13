@@ -135,6 +135,11 @@ if tile[i][j] > θᵢ {          // 99.99%+ rejected here (~1 cycle, to be measu
 **Conclusion: the inner-loop cost of Tanimoto selection ≈ that of cosine selection.** The price is just one scalar,
 `B_min`, per column block, plus one extra multiply-add on the rare path.
 
+> **Measured (2026-10-12, stage A+):** on deduplicated Levine (161,443 cells) Tanimoto selection takes
+> 3.4 s against 2.45 s for cosine (+38%, not "≈"), bit-identical to the Tanimoto brute force and with
+> zero fallback rows. The block extremes are precomputed per column block, so the bound does not depend
+> on the norm-sorted layout. §3's norm-window pruning (stage D) is what targets this path.
+
 ### 2.3 The key to tightening the conservative threshold: sort by norm
 
 How tight `θᵢ` is depends on the spread of norms within a column block. Hence:
@@ -366,10 +371,14 @@ then the prefix **is** the exact answer for the smaller k, not an approximation.
 ### 6.2 Defaults
 
 ```python
-knn(X, k=10, select="cosine", normalize="l2", backend="exact")
+knn(X, k=10, select="cosine", normalize=None, backend="exact")
 build_graph(X, k=10, select="cosine", weight="tanimoto",
-            normalize="l2", backend="exact", symmetrize="fuzzy_union")
+            normalize=None, backend="exact", symmetrize="fuzzy_union")
 ```
+
+`normalize=None` resolves to `"l2"` for cosine and `"none"` for Tanimoto (stage A+, 2026-10-12):
+cosine is scale-invariant, and Tanimoto selection only means something on raw magnitudes. Asking
+explicitly for `select="tanimoto", normalize="l2"` runs cosine and warns (§0.1).
 
 **Passing no optional parameters ⇒ the output must be identical, entry for entry, to the published CosTaL** (all six items of §0.0 pinned).
 
@@ -460,6 +469,6 @@ rather than letting it change silently with the preprocessing. **Decide whether 
 | Stage | Increment |
 |---|---|
 | **A** | only `select=cosine`, but build the trait and generic-kernel skeleton in one go; also do the §2.3 sort-by-norm in one go (the cosine route doesn't need it but it does no harm, and the §4.1 tie-break depends on the original-index mapping, so better to get it right from the start) |
-| **A+** | add the `select=tanimoto` comparator + the §2.2 conservative threshold + the §2.4 guardrail. **About a dozen or so lines + a set of tests** |
+| **A+** | add the `select=tanimoto` comparator + the §2.2 conservative threshold + the §2.4 guardrail. **About a dozen or so lines + a set of tests** — **done 2026-10-12** (docs/03 §9) |
 | **C′** | the §5 2×2 experiment (run together with the Leiden tuning experiment, sharing one metrics script); the same scripts run the §5.1 row-norm experiment and the §6.7 comparison of the two scRNA presets |
 | **D** | the §3 norm window (tanimoto) and cone bound (cosine), behind the same trait |

@@ -380,7 +380,57 @@ On the same x86 runner, the original `bc()` graph build at deduplicated 50k take
 **Cache detection fails on these VMs.** `l2_bytes_per_thread()` returned `None`, so tiles fell back
 to the 128 KB floor (32 rows); the sweep's best tile (256 × 256, 256 KB) is ~20% faster
 (2.41 s vs 2.90 s at 50k). Detection via CPUID would cover both these VMs and Windows (docs/06 §2.3).
+**Fixed the same day** with CPUID detection and square-ish tiles: a rerun detected 256 KB per thread and
+its default tile (128 × 256) came within 2% of the sweep's best (2.98 s vs 2.93 s at 50k); that runner's
+CPU was slower overall, so absolute times are not comparable across runs.
 
 **The original `p_knng` is not exact on Levine** (mean recall@10 98.2%, 17% of rows differ), but the
 effect on clustering is within Leiden's seed-to-seed noise. Details and the pending decision on
 what `compat="paper"` pins: docs/04 §4 "Results".
+
+---
+
+## 9. Stage C and stage A+ results (2026-10-12)
+
+> Same M1 Pro as §8 (swap in use). Deduplicated Levine (161,443 cells), the exact CosTaL graph
+> (1,309,514 edges), leidenalg 0.12.0 / python-igraph 1.0.0, resolution 0.8, 5 seeds per variant.
+> Script and raw numbers: `bench/stage_c.py`, `bench/out/stage_c.json`.
+
+### 9.1 Stage C: how many Leiden iterations, and which implementation
+
+| Implementation | n_iterations | s / run | Quality (RBConfiguration) | ARI vs paper, same seed | Seed-to-seed ARI | Label ARI |
+|---|---:|---:|---:|---:|---:|---:|
+| leidenalg | 1 | 16.1 | 2,165,219 | 0.943 | 0.840 | 0.766 ± 0.010 |
+| leidenalg | 2 | 21.3 | 2,176,846 | **0.988** | 0.884 | 0.766 ± 0.009 |
+| leidenalg | 3 | 32.4 | 2,177,111 | 0.990 | 0.887 | 0.766 ± 0.009 |
+| leidenalg | 5 | 40.5 | 2,177,798 | 0.995 | 0.893 | 0.766 ± 0.009 |
+| **leidenalg (paper)** | **10** | **65.5** | 2,178,405 | 1.000 | 0.898 | 0.766 ± 0.008 |
+| leidenalg | until stable | 269.4 | 2,179,489 | 0.990 | 0.908 | 0.766 ± 0.008 |
+| igraph | 2 | **1.7** | 2,173,157 | 0.871 | 0.847 | 0.793 ± 0.049 |
+| igraph | 10 | 4.8 | 2,175,627 | 0.880 | 0.858 | 0.792 ± 0.049 |
+| igraph | until stable | 15.8 | 2,176,500 | 0.883 | 0.864 | 0.792 ± 0.049 |
+
+- **Two iterations reproduce the paper setting.** With the same seed, leidenalg at 2 iterations agrees
+  with 10 iterations at ARI 0.988 — closer than the paper setting agrees with *itself* across seeds
+  (0.898) — with identical accuracy and quality within 0.07%, in a third of the time. §5 guessed ~80%
+  savings; the measured saving is 67%. Iterating until stable buys 0.05% more quality at 4× the cost.
+- **igraph's native Leiden is 38× faster** than the paper setting (1.7 s vs 65.5 s) with no loss of
+  accuracy against the labels (0.79 vs 0.77, within the seed spread), but its partitions differ more
+  from leidenalg's (0.87–0.88) than leidenalg's do across seeds, and it reaches slightly lower quality.
+  It is a different implementation, not a faster run of the same one.
+- **Decision (under delegated authority).** `compat="paper"` keeps leidenalg with 10 iterations
+  (docs/04 §0.0 item 5). When the cluster layer (`find_communities`) arrives, it gets a fast setting
+  (igraph native, 2 iterations) as an explicit option; making it the default would be a default change
+  and needs a major version bump (docs/04 §6.5). For resolution sweeps (docs/05 §2.3), igraph's speed
+  is what makes them cheap.
+- Leiden is now dominated by the choice of implementation, not by kNN: with igraph, the full pipeline on
+  161,443 cells is about 3 s of graph building plus 1.7 s of clustering.
+
+### 9.2 Stage A+: Tanimoto selection
+
+`select="tanimoto"` (raw magnitudes; docs/04 §2) is implemented behind the same generic kernel:
+a conservative per-block threshold chosen by the sign of cᵢ (§2.4, block extremes precomputed), T on the
+rare path, f64 rescoring with the original's `tani_from_cos`, and an ε for the fallback derived for
+Tanimoto scores. It is bit-identical to the Tanimoto brute force on synthetic data (all block sizes,
+backends, layouts, thread counts; signed and tie-heavy data included) and on Levine 20k, and runs
+3.4 s on 161,443 cells against 2.45 s for cosine.

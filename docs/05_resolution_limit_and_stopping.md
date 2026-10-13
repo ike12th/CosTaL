@@ -118,6 +118,9 @@ At the same time it sidesteps both hard flaws of recursion: **non-greedy** (no i
 are already separated (docs/04 §6.1), **kNN is computed only once**, and sweeping resolution only reruns Leiden.
 Add the two few-hour tasks from docs/03 (switching to igraph's native `community_leiden`,
 tuning `n_iterations`), and sweeping 20 resolutions is entirely affordable.
+**Measured (docs/03 §9):** on all 161,443 deduplicated Levine cells, igraph's native Leiden takes 1.7 s per
+run (2 iterations) and leidenalg with 2 iterations 21 s, so a 20-resolution sweep costs well under a
+minute with igraph.
 
 Moreover, these Leiden runs are independent of each other and share the same read-only graph, so **they can run concurrently**, with speedup close to the core count
 (for caveats about performance/efficiency cores see docs/06 §4). kNN is still computed only once, and is still exact.

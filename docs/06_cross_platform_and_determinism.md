@@ -123,6 +123,12 @@ Because of §1, these three tiers affect only speed, not output.
 > **Measured on GitHub's x86-64 Linux VMs (docs/03 §8.5): `/sys` detection returned nothing there**, so the
 > 128 KB floor applied and cost ~20% against the best tile. On x86, reading cache sizes via CPUID (leaf 4 on Intel,
 > 0x8000001D on AMD; `core::arch` intrinsics, no dependency) would cover these VMs and Windows at once.
+> **Done (2026-10-12):** every platform now tries its native source (sysctl / sysfs) and falls back to CPUID
+> on x86; GitHub's VMs report 256–512 KB per thread. The tile **shape** changed with it: the column width is
+> the largest power of two with side² ≤ budget (clamped to 256..1024) instead of a fixed 1024, because at the
+> same 256 KB a 256×256 tile beat 64×1024 by ~25% on x86. Result: on a GitHub runner the default is within 2%
+> of the sweep's best (was 20% off), and on the M1 the new 512×512 default is equal at 50k and ~7% faster
+> at 100k than the old 512×1024 (docs/03 §8.5).
 
 ### 2.4 Alternative: register-level fusion (not assumed for Stage A)
 
