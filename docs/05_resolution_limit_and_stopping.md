@@ -219,13 +219,54 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 >   splits of clusters that are themselves stable). Any next version must be fixed on one dataset and
 >   checked on the others the same way.
 
+> **Second attempt (2026-10-13): a conductance rule — better, transfers to one of three held-out sets
+> fully and to one partly.** Same ensemble and script (`refine_conductance`). Two changes, both aimed at
+> the diagnosed failures: no base selection (start from the coarsest resolution) and no seed-stability
+> threshold. Instead a candidate C is carved out of its current host H if less than φ_max of its edge
+> weight goes to the rest of the host, φ(C | H) = w(C, H∖C) / vol(C): a real sub-population is
+> cohesive, while a fragment of a large population shares a long boundary with its sibling. Over all
+> candidates, φ separates good sub-clusters from fragments about as well as stability on Levine_32
+> (Spearman with the best-match F1 −0.74 vs +0.71), but on a scale that holds across datasets (good
+> sub-clusters ≤ 0.02–0.04, fragments 0.05–0.13). **φ_max = 0.04 was fixed on Levine_32** (the gap
+> there) before running the other three.
+>
+> | Data | Partition | ARI | Clusters | F1, 5 rarest | F1, 5 largest | F1, mean |
+> |---|---|---:|---:|---:|---:|---:|
+> | Levine_32 (design) | single, best ARI (0.283) | 0.966 | 10.5 | 0.276 | 0.983 | 0.644 |
+> | | single, best mean F1 (0.8) | 0.765 | 18.8 | 0.450 | 0.887 | 0.688 |
+> | | **conductance, φ_max = 0.04** | 0.876 | 38 | **0.622** | 0.912 | **0.785** |
+> | | conductance, φ_max = 0.02 | 0.943 | 23 | 0.609 | 0.954 | 0.770 |
+> | GSE84133 (held out) | single, best ARI (0.2) | 0.936 | 7.0 | 0.139 | 0.973 | 0.552 |
+> | | single, best mean F1 (1.131) | 0.815 | 11.2 | 0.280 | 0.900 | 0.651 |
+> | | **conductance, φ_max = 0.04** | **0.950** | 9 | **0.280** | **0.974** | **0.677** |
+> | Levine_13 (held out) | single, best ARI (1.131) | 0.827 | 19.0 | 0.111 | 0.925 | 0.487 |
+> | | single, best mean F1 (2.263) | 0.768 | 29.0 | 0.162 | 0.878 | 0.498 |
+> | | **conductance, φ_max = 0.04** | 0.769 | 46 | **0.315** | 0.908 | **0.550** |
+> | GSE74672 (held out) | single, best mean F1 (0.4) | 0.566 | 9.5 | 0.728 | 0.809 | 0.745 |
+> | | conductance, φ_max = 0.04 | 0.480 | 26 | 0.689 | 0.723 | 0.705 |
+>
+> - **GSE84133: better than every single resolution on every summary at once** — ARI above the best
+>   single resolution, the rare and large populations at the per-population oracle (0.281 / 0.976).
+> - **Levine_13: the rare populations jump** (0.315, above the single-resolution oracle of 0.181,
+>   because carving combines clusters no single partition has), mean F1 +0.05 over any single
+>   resolution, at an ARI cost (0.77 vs 0.83 at the best-ARI resolution).
+> - **GSE74672: no gain** — below the best single resolution on the `level1` labels and level with it
+>   on the 69 finer labels (ARI 0.34 vs 0.35 at a similar cluster count).
+> - Sensitivity: φ_max 0.02–0.05 changes little on GSE84133 and Levine_32's F1; Levine_13 needs ≥ 0.03
+>   for the rare gain, GSE74672 is best at 0.02. So φ_max is a real knob, but a readable one ("at most
+>   4% of a sub-cluster's edge weight leaks into the rest of its parent").
+> - **Status: promising, not shipped.** Before it becomes an opt-in mode: rerun the ensemble with
+>   igraph's Leiden (44 leidenalg runs cost ~2.5 min on 6 cores for 161k cells; igraph would be ~1 min
+>   serial), add datasets with known rare populations (Samusik, Nilsson_rare — not available offline),
+>   and decide how a user picks φ_max.
+
 ### 2.4 Ranking
 
 | | What | Cost | Why it ranks here |
 |---|---|---|---|
 | **0** | The diagnostic in §1.1 | ~20 lines | First prove the disease exists |
 | **1** | ~~Evaluate `local=True` (first fix the issue in §2.2: semantics confirmed inverted)~~ **Done: no consistent gain (§2.2)** | Almost zero | Already implemented, non-greedy, `O(N·k)`, no added knob |
-| **2** | Multi-resolution stability — **first attempt: gains on Levine_32 only (§2.3)** | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
+| **2** | Multi-resolution stability — **seed-stability rule: Levine_32 only; conductance rule: also GSE84133, partly Levine_13 (§2.3)** | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
 | **3** | Recursive splitting **+ significance-based stopping criterion** | High | Only worth it if 1 and 2 both fall short, and the contribution must be in the criterion |
 
 ---

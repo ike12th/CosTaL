@@ -16,6 +16,13 @@ the 5 largest 0.99, where any single resolution gets 0.28 / 0.98 or 0.49 / 0.81
    and at least ``MIN_SIZE`` cells is carved out of the current cluster that hosts it, if it is
    nested in that host (≥ 80% of C inside it) and is a proper part of it (C ≤ 90% of the host).
 
+**Second rule (conductance)**, added after the first one failed to transfer: start from the
+coarsest resolution (its medoid seed) and, coarse to fine, carve a candidate (≥ ``MIN_SIZE`` cells,
+nested and proper as above) out of its current host if less than φ_max of its edge weight connects
+to the rest of the host: φ(C | H) = w(C, H∖C) / vol(C). No seed-stability threshold and no base
+selection. φ_max = 0.04 was fixed from the gap between sub-populations and fragments on Levine_32
+before running the other sets; 0.02–0.05 is reported for sensitivity.
+
 Labels are used only for scoring: ARI / NMI on labeled cells, and the per-population best-match F1
 of bench/rare_populations.py, summarized as the 5 rarest and the 5 largest populations. Reported
 next to every single resolution of the ensemble and the per-population oracle above, for
@@ -53,6 +60,8 @@ SEEDS = range(4)
 N_ITERATIONS = 2
 TAUS = [0.6, 0.7, 0.8, 0.85, 0.9, 0.95]
 MIN_SIZE = 2 * K
+PHI_MAX = 0.04  # fixed on Levine_32 (docs/05 §2.3)
+PHIS = [0.02, 0.03, 0.04, 0.05]
 NESTED, PROPER = 0.8, 0.9
 
 _GRAPH = None
@@ -91,6 +100,60 @@ def ensemble(name: str, x: np.ndarray) -> np.ndarray:
     CACHE.mkdir(parents=True, exist_ok=True)
     np.savez(path, memberships=memberships, resolutions=np.array(RESOLUTIONS), seeds=np.array(list(SEEDS)))
     return memberships
+
+
+def adjacency(x: np.ndarray):
+    """Symmetric weighted adjacency (scipy CSR) of the published graph, and the weighted degrees."""
+    import scipy.sparse as sp
+
+    g = build(cp.knn(x, K), "tanimoto")
+    e = np.array(g.get_edgelist())
+    w = np.asarray(g.es["weight"])
+    n = g.vcount()
+    a = sp.csr_matrix((np.r_[w, w], (np.r_[e[:, 0], e[:, 1]], np.r_[e[:, 1], e[:, 0]])), shape=(n, n))
+    return a, np.asarray(a.sum(axis=1)).ravel()
+
+
+def refine_conductance(ms: np.ndarray, a, deg: np.ndarray, phi_max: float) -> tuple[np.ndarray, int]:
+    """The second rule: coarse to fine, carve C out of its host H if w(C, H∖C) / vol(C) ≤ phi_max."""
+    R, S, _ = ms.shape
+    sizes0 = [len(np.unique(ms[0, s])) for s in range(S)]
+    labels = ms[0, int(np.argsort(sizes0)[len(sizes0) // 2])].astype(np.int64).copy()  # median-size seed
+    next_label = labels.max() + 1
+    carved = 0
+    for r in range(1, R):
+        cands = []
+        for s in range(S):
+            m = ms[r, s]
+            sizes = np.bincount(m)
+            for c in np.flatnonzero(sizes >= MIN_SIZE):
+                cands.append((s, c))
+        scored = []
+        for s, c in cands:
+            cells = ms[r, s] == c
+            hosts = np.bincount(labels[cells])
+            host = int(hosts.argmax())
+            in_host = cells & (labels == host)
+            host_mask = labels == host
+            if hosts[host] < NESTED * cells.sum() or in_host.sum() > PROPER * host_mask.sum():
+                continue
+            phi = a[in_host][:, host_mask & ~in_host].sum() / deg[in_host].sum()
+            if phi <= phi_max:
+                scored.append((phi, s, c))
+        for phi, s, c in sorted(scored):
+            cells = ms[r, s] == c
+            hosts = np.bincount(labels[cells])
+            host = int(hosts.argmax())
+            in_host = cells & (labels == host)
+            host_mask = labels == host
+            if hosts[host] < NESTED * cells.sum() or in_host.sum() > PROPER * host_mask.sum():
+                continue  # the host changed since scoring
+            if a[in_host][:, host_mask & ~in_host].sum() / deg[in_host].sum() > phi_max:
+                continue
+            labels[in_host] = next_label
+            next_label += 1
+            carved += 1
+    return np.unique(labels, return_inverse=True)[1], carved
 
 
 def best_jaccard(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -200,7 +263,17 @@ def run(name: str) -> dict:
         print(f"  {name:<9} multiscale tau={tau}: carved {carved:3d}  ARI {sc['ari']:.3f}  clusters "
               f"{sc['clusters']:3d}  F1 rarest-5 {sc['f1_rarest_5']:.3f}  largest-5 {sc['f1_largest_5']:.3f}  "
               f"mean {sc['f1_mean']:.3f}", flush=True)
+    a, deg = adjacency(x)
+    conductance = []
+    for phi_max in PHIS:
+        m, carved = refine_conductance(ms, a, deg, phi_max)
+        sc = scores(labels, m, rare, large)
+        conductance.append({"phi_max": phi_max, "carved": carved, **sc})
+        print(f"  {name:<9} conductance phi_max={phi_max}: carved {carved:3d}  ARI {sc['ari']:.3f}  clusters "
+              f"{sc['clusters']:3d}  F1 rarest-5 {sc['f1_rarest_5']:.3f}  largest-5 {sc['f1_largest_5']:.3f}  "
+              f"mean {sc['f1_mean']:.3f}", flush=True)
     return {"n": int(len(x)), "abundance": {str(p): abundance[p] for p in order},
+            "conductance": conductance,
             "seed_agreement": agreement, "base": {"resolution": RESOLUTIONS[r0], "seed": s0},
             "single_resolution": single, "oracle": {"by_population": oracle, **oracle_summary},
             "multiscale": refined}
