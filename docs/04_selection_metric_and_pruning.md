@@ -257,9 +257,28 @@ the real `p_knng` comparison goes into Linux CI.
 >   different neighbor, and the worst row gets 7 of 10. The differences are not ties: in differing
 >   rows the cosine gap reaches 2–3×10⁻³, and even on rows with identical neighbor sets the reported
 >   similarity differs from the true cosine (median 2×10⁻⁵, max 3.2×10⁻³, in both directions).
->   **Cause unknown.** It is not the negative values (clipping or dropping negatives fits worse:
->   max 6–8×10⁻³ vs 3×10⁻³ for plain cosine), and not a per-feature effect (regressing the
->   discrepancy on the 32 per-feature products explains nothing; all coefficients ≤ 1×10⁻³).
+>   ~~Cause unknown.~~ **Cause found (2026-10-13): `pl2knn` assumes non-negative input** — see
+>   the next item. (The first attempt compared p_knng's output on *signed* input with the cosine
+>   of clipped rows, which fits worse — max 6–8×10⁻³ — because p_knng does not clip either; it
+>   drops *some* negative contributions, depending on the order it accumulates in.)
+> - **Item 3, cause — confirmed: `pl2knn` treats `> 0` as "present".** The 0.2.0 source
+>   (`src/pl2knn.c`, found in the author's archive; docs/02 addendum) uses the sign of a value as
+>   a flag in two places. A candidate's partial dot product is kept only while it is positive
+>   (`if (accum[lcid] > 0.0)` at line 732; at line 877, `accum ≤ 0` resets the candidate to
+>   "not seen"), and the forward pass adds a product only when the query's value is positive
+>   (`if (qrow[rind[j]] > 0)` at line 816). Both are correct for non-negative data and silently
+>   wrong for signed data, where a partial sum can dip below zero and recover. **Test**: the
+>   `golden` workflow with `clip=true` (`GOLDEN_CLIP=1`, Levine 20k; raw numbers in
+>   `bench/out/golden_pknng_clip.json`) clips negatives to 0 *before* both p_knng and CosTaL+ see
+>   the data. Deduplicated: **19,999 of 20,000 rows identical**; the one differing row has a
+>   cosine gap of 9×10⁻⁸ (a float32 tie), and the reported values differ from the exact cosine by
+>   at most 7×10⁻⁷ (float32 output). Raw (with duplicate cells): 98.5% identical; all 298
+>   differing rows have gaps ≤ 1×10⁻⁷, i.e. exact duplicates whose tie order differs. So on
+>   non-negative input `p_knng` *is* an exact cosine kNN, and the whole Levine discrepancy comes
+>   from the negative entries that arcsinh leaves in Levine_32dim (26.5% of entries deduplicated,
+>   27.00% on the raw 265,627 rows — which matches the paper's reported Levine_32dim
+>   "sparsity" of 26.999%: the paper counted non-positive entries, the ones p_knng treats as absent,
+>   and its number is consistent with the raw file, duplicates included).
 > - **Clustering impact: within Leiden's own noise.** Building the graph exactly as the published
 >   Linux path does (p_knng's neighbors and values → original `tani_from_cos` → original
 >   `build_graph`) and running Leiden with 5 seeds next to the exact graph: same-seed partition
@@ -273,6 +292,14 @@ the real `p_knng` comparison goes into Linux CI.
 > deliberately. **`compat="paper"` pins the method as published** — exact cosine kNN, with every
 > other item of §0.0 — and this section stays as the record of how the shipped `p_knng` deviates
 > from it. Evidence that this costs nothing in accuracy: the clustering comparison above.
+>
+> **Reaffirmed 2026-10-13, with the cause known.** The deviation could now be reproduced (port
+> the two sign checks), but it should not be: it is a non-negative-data algorithm applied to
+> signed data, not part of the method the paper describes. Two consequences: (1) on data without
+> negatives — every scRNA-seq dataset of the paper (log1p of counts) — the shipped binary was an
+> exact cosine kNN, so `compat="paper"` reproduces those results up to float32 ties; (2) on
+> cytometry data with negatives (Levine_32dim, and any other arcsinh-transformed set with
+> negative entries), the paper's numbers came from the slightly perturbed graph, whose effect on clustering is within Leiden's noise (above).
 
 ### 4.1 Deterministic tie-break (must be settled first, otherwise all three layers above fail)
 

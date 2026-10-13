@@ -52,6 +52,12 @@ So the kNN column gives three implementations, bracketing the true cost:
 >   the README calls itself a work in progress, and the tests cover only the approximate path, with no recall check. `p_knng_Linux`
 >   is an earlier C version (symbol prefix `da_csr_*`, compiled with GCC 4.8.5 / RHEL 7, file date 2021-01).
 >   **The two are not guaranteed to be bit-identical.** That earlier C source cannot be found on GitHub.
+>   **Update (2026-10-13): it is in the author's own archive** — `pl2knng-0.2.0.tgz` (2021,
+>   `src/pl2knn.c` and the `da_csr_*` support library), matching the binary's symbols. Reading it
+>   explained the one open question about the binary: `pl2knn` uses "value > 0" as a "present"
+>   flag, both for candidate accumulators and in the forward dot product, so it assumes
+>   non-negative input. With negatives clipped beforehand, the binary matches CosTaL+'s exact kNN
+>   on 19,999 of 20,000 Levine rows (the last one is a float32 tie); docs/04 §4 has the details.
 > - **The binary is not stripped.** The function names are all there. `strings` alone reads out the modes `pl2knn` / `pl2knn-a` / `pkij`
 >   and the parameters `-readZidx -writeZidx -nthreads -permcols`. The original uses `pl2knn` (exact).
 > - **Don't decompile it; run it.** What we are missing is "what it actually outputs" (the L3 golden output in docs/04 §4,

@@ -15,6 +15,7 @@ bench/out/*
 !bench/out/stage_a.json
 !bench/out/stage_a.linux-x86_64.json
 !bench/out/golden_pknng.json
+!bench/out/golden_pknng_clip.json
 !bench/out/pknng_analysis.json
 !bench/out/stage_c.json
 !bench/out/stage_c2.json

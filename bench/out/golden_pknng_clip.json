@@ -1,0 +1,70 @@
+{
+  "environment": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.17",
+    "costal_plus": "0.1.0",
+    "cpus": 2
+  },
+  "k": 10,
+  "runs": [
+    {
+      "n": 20000,
+      "dedup": true,
+      "clip_negatives": true,
+      "clu_meta": [
+        20000,
+        20000,
+        200000
+      ],
+      "pknng_s": 13.247994865999999,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 177,
+        "min_index": 2,
+        "max_index": 20000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.99995,
+        "rows_containing_self": 0,
+        "min_index": 1,
+        "max_index": 19999
+      },
+      "inferred_base": 1,
+      "rows_differing": 1,
+      "max_cos_gap_in_differing_rows": 9.289139679680147e-08,
+      "value_max_abs_diff_vs_costal_plus_cos": 7.174946012877825e-07,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    },
+    {
+      "n": 20000,
+      "dedup": false,
+      "clip_negatives": true,
+      "clu_meta": [
+        20000,
+        20000,
+        200000
+      ],
+      "pknng_s": 15.623591940000011,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 116,
+        "min_index": 1,
+        "max_index": 20000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.9851,
+        "rows_containing_self": 0,
+        "min_index": 0,
+        "max_index": 19999
+      },
+      "inferred_base": 1,
+      "rows_differing": 298,
+      "max_cos_gap_in_differing_rows": 9.930909206090632e-08,
+      "value_max_abs_diff_vs_costal_plus_cos": 7.27195050953533e-07,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    }
+  ]
+}
