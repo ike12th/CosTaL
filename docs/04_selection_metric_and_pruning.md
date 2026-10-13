@@ -275,10 +275,12 @@ the real `p_knng` comparison goes into Linux CI.
 >   at most 7×10⁻⁷ (float32 output). Raw (with duplicate cells): 98.5% identical; all 298
 >   differing rows have gaps ≤ 1×10⁻⁷, i.e. exact duplicates whose tie order differs. So on
 >   non-negative input `p_knng` *is* an exact cosine kNN, and the whole Levine discrepancy comes
->   from the negative entries that arcsinh leaves in Levine_32dim (26.5% of entries deduplicated,
->   27.00% on the raw 265,627 rows — which matches the paper's reported Levine_32dim
->   "sparsity" of 26.999%: the paper counted non-positive entries, the ones p_knng treats as absent,
->   and its number is consistent with the raw file, duplicates included).
+>   from the negative entries that arcsinh leaves in Levine_32dim (26.53% of entries deduplicated,
+>   26.9993% on the raw 265,627 rows). Side finding: that raw-file share is exactly the paper's
+>   reported Levine_32dim "sparsity" of 26.999%. The original `calculate_sparsity` counts exact
+>   zeros, and the file has none, so the paper's number was computed on data with negatives
+>   zeroed (or counted as ≤ 0) — and on the raw file with its duplicate cells, since the
+>   deduplicated share is 26.53%.
 > - **Clustering impact: within Leiden's own noise.** Building the graph exactly as the published
 >   Linux path does (p_knng's neighbors and values → original `tani_from_cos` → original
 >   `build_graph`) and running Leiden with 5 seeds next to the exact graph: same-seed partition

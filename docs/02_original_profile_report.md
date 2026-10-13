@@ -86,7 +86,8 @@ So the kNN column gives three implementations, bracketing the true cost:
 >    so self stays in the neighbor list and a true neighbor is dropped (docs/04 §4).
 > 4. From now on, every accuracy evaluation deduplicates first (`load_levine(dedup=True)` in `bench/stage_a.py`: keep one row per
 >    key, taking the label from the labeled copy). Whether the original paper's results on Levine_32dim were based on this file with duplicates
->    needs to be checked with the authors.
+>    needs to be checked with the authors. **Evidence that they were (2026-10-13)**: the paper reports a Levine_32dim sparsity of
+>    26.999%; the share of negative entries is 26.9993% in the raw 265,627-row file and 26.53% after deduplication (docs/04 §4).
 
 > **Noisy environment**: during testing, this M1 Pro (16 GB) had its swap fully used at 14.6 GB.
 > Absolute seconds will be on the slow side; this report's conclusions rest on the **ratios between stages**, not on the absolute values.
