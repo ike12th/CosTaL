@@ -503,9 +503,12 @@ is unaffected (no window; the cone bounds of docs/04 §3 remain to do).
   (Levine_32, Samusik_01, Nilsson_rare, Mosmann_rare: exact matches), so for Levine_13 the paper's
   1,689,738 positives against our 1,536,151 mean different raw values, not a different transform (any
   arcsinh keeps the sign). HDCytoData's `Levine_13dim_SE` (ExperimentHub EH2242) is identical to the
-  GitHub `Levine_13dim_notransform.fcs` value for value, so it is not that either. The remaining
-  candidate is the pre-transformed `Levine_13dim.fcs` of the same GitHub repository (9.4 MB, not
-  downloaded).
+  GitHub `Levine_13dim_notransform.fcs` value for value, so it is not that either; nor is the
+  pre-transformed `Levine_13dim.fcs` of the same GitHub repository (checked 2026-10-13: it is
+  `arcsinh(raw/5)` to 5×10⁻⁷, same labels, the same 1,536,151 positives). None of the three public
+  versions gives the paper's 1,689,738, so the paper's Levine_13 matrix came from somewhere else
+  (another export, or a different intermediate). **Still a question for the author**; it does not
+  affect any comparison here, all of which run both methods on the same matrix.
 
 ### 10.2 Parity with the original on scRNA-seq
 
