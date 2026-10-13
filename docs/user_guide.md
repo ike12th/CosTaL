@@ -49,6 +49,8 @@ prints the version, the platform and the matrix-multiplication backend (`acceler
 
 **Platforms.** Wheels are built for macOS (Apple silicon and Intel), Linux (x86-64 and aarch64, glibc
 and musl) and Windows (x64 and arm64). One wheel per platform covers CPython 3.9 and later (abi3).
+On Windows on Arm, igraph and leidenalg publish no wheels yet: `preprocess`, `knn`, `reweight` and
+`build_graph` work, while the Leiden-based functions need those two packages built from source.
 
 **From source** (any platform with a Rust toolchain):
 
@@ -105,7 +107,7 @@ The output has one row per input cell: `cell,cluster`.
 ### Faster, or finer
 
 ```python
-labels = costal_plus.find_communities(X, leiden="fast")         # igraph's Leiden: 10-60x faster end to end
+labels = costal_plus.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
 labels = costal_plus.find_communities(X, resolution=0.4)        # fewer, larger clusters
 labels = costal_plus.find_communities_multiscale(X)             # rare populations kept (section 5)
 ```
@@ -313,9 +315,10 @@ costal-plus info
   reasonable start, not a rule: sweep a few values on one `build_graph` (section 4) — it costs only
   Leiden runs.
 - **k**: 10 (the paper). Larger k smooths the graph and merges small populations.
-- **`leiden="fast"`** gives the same accuracy against the labels on every dataset we measured, at
-  10-60x the end-to-end speed, but not the same individual partition as the paper's setting.
-  Use it for exploration and sweeps; use the default to reproduce published results.
+- **`leiden="fast"`** (igraph's Leiden) runs 5–14× faster end to end than the default, at accuracy
+  against the labels comparable within Leiden's run-to-run noise on every dataset we measured, but it
+  does not reproduce the paper's individual partitions. Use it for exploration and sweeps; use the
+  default to reproduce published results.
 - **`select="tanimoto"`** chooses neighbors by Tanimoto on the raw rows instead of cosine. On
   low-dimensional panels where populations differ in overall marker abundance (Levine_13: 13
   markers) it recovered rare populations better at equal ARI; elsewhere it tied (docs/04 §5.1).
@@ -329,7 +332,7 @@ costal-plus info
   in fixed-order f64 arithmetic and ties go to the lower index, so `knn` returns bit-identical
   results across machines, operating systems, thread counts and matrix-multiplication backends.
 - **Leiden is randomized.** Pass `seed=` for repeatable clusters. The same seed reproduces the same
-  partition on the same graph; different seeds typically agree at ARI 0.85-0.95.
+  partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
 - **Parity with the original.** On the paper's datasets, CosTaL+ and the original code give identical
   neighbor sets and, at the same Leiden seed, identical partitions on most datasets (docs/03 §10).
   Where partitions differ, the graphs differ only in the last bits of the edge weights (float32 vs
@@ -415,7 +418,7 @@ What changes, and why:
   slower brute-force path elsewhere; CosTaL+ is one compiled library on all platforms.
 - **Exact kNN on all data.** The `p_knng` binary assumes non-negative input (its own documentation
   says so); arcsinh-transformed cytometry has negative values (27% of Levine_32's entries, 42% of
-  Samusik_01's), where it returned slightly wrong neighbors for about 17% of cells. CosTaL+ computes
+  Samusik_01's), where it returned slightly wrong neighbors for about 17% of Levine_32's cells. CosTaL+ computes
   the exact cosine kNN the paper describes. On non-negative data (all scRNA-seq) the two agree
   exactly.
 - **macOS / Windows results now match Linux.** The original's fallback path kept a cell in its own

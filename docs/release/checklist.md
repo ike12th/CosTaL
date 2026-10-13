@@ -19,6 +19,9 @@ and irreversible: they are done by the maintainer, never by an automated job on 
 - [ ] Actions → `CI` → *Run workflow* with `all_os` ticked: Linux, macOS, Windows green.
 - [ ] Actions → `wheels` → *Run workflow*: all 8 wheels and the sdist build, and every native wheel
       installs and passes its tests on its runner. Download the artifact `wheels-*` to inspect.
+      (1.0.0, run 38436177748: all green; 49 passed / 4 skipped on macOS arm64, Linux x86-64 and
+      Windows x64 — the skips are the scanpy tests; on Windows arm64 the igraph/leidenalg tests skip
+      because those packages have no wheels there.)
 
 ## 3. Tag
 
