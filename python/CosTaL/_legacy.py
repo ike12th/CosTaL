@@ -1,14 +1,9 @@
-"""The CosTaL 0.0.2 API, running on CosTaL+.
+"""The CosTaL 0.0.2 interface, kept in CosTaL 1.0 so that 0.0.2 scripts run unchanged.
 
-Old scripts keep working by changing one import::
-
-    import CosTaL                          # before
-    from costal_plus import legacy as CosTaL   # after (or: pip install "CosTaL>=0.1")
-
-``pp``, ``find_communities`` and ``clustering`` keep the original signatures and return a Python list
-of labels; the evaluation helpers of ``CosTaL.descriptions`` (``return_scores`` and friends) are
-ported as they were. What runs underneath is CosTaL+: the exact kNN of the published method on every
-platform (docs/user_guide.md §11 lists the differences from the original binaries).
+``pp``, ``clustering`` and the 0.0.2 form of ``find_communities`` keep their signatures and return a
+Python list of labels; the evaluation helpers of ``CosTaL.descriptions`` (``return_scores`` and
+friends) are ported as they were. What runs underneath is the 1.0 implementation: the exact kNN of
+the published method on every platform (docs/user_guide.md §11 lists the differences from 0.0.2).
 """
 
 from __future__ import annotations
@@ -17,8 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from ._api import build_graph
-from ._api import find_communities as _find_communities
+from ._api import _find_communities, build_graph
 from ._preprocess import COFACTORS, preprocess
 
 __all__ = [
@@ -62,7 +56,7 @@ def find_communities(X: Any, pp_method: str | None = None, method: str = "tani",
         raise NotImplementedError(
             "local=True is not carried over: the original passed similarities where UMAP expects "
             "distances, and the corrected version gave no consistent gain (docs/05 §2.2). For rare "
-            "populations use costal_plus.find_communities_multiscale.")
+            "populations use CosTaL.find_communities_multiscale.")
     if method not in _METHODS:
         raise RuntimeError("Method not supported")
     X = pp(X, platform=pp_method)
@@ -86,7 +80,7 @@ def find_communities(X: Any, pp_method: str | None = None, method: str = "tani",
 def clustering(X: Any, nbr_num: int = 10, seed: int | None = None, local: bool = False, method: str = "tani",
                pp_method: str | None = None, **kwargs: Any) -> list:
     """CosTaL's ``clustering``. The original ran ``find_communities`` on Linux and a brute-force path
-    on other systems; CosTaL+ runs the published (Linux) path everywhere."""
+    on other systems; CosTaL 1.0 runs the published (Linux) path everywhere."""
     return find_communities(X, pp_method=pp_method, method=method, nbr_num=nbr_num, seed=seed, local=local,
                             **kwargs)
 

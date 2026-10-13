@@ -1,4 +1,4 @@
-"""Cluster scRNA-seq counts (pip install "costal-plus[scrnaseq]").
+"""Cluster scRNA-seq counts.
 
     python examples/scrnaseq.py                 # synthetic counts
     python examples/scrnaseq.py counts.h5ad     # raw UMI counts in .X (pip install anndata)
@@ -8,7 +8,7 @@ import sys
 
 import numpy as np
 
-import costal_plus
+import CosTaL
 
 
 def synthetic(n=600, genes=3000, types=4, seed=0):
@@ -31,8 +31,8 @@ def main(argv):
         counts, truth = synthetic()
 
     # cells with < 200 detected genes are dropped: keep their indices to align labels
-    X, cells = costal_plus.preprocess(counts, "scrnaseq", return_cells=True)
-    labels = costal_plus.find_communities(X, seed=0)
+    X, cells = CosTaL.preprocess(counts, "scrnaseq", return_cells=True)
+    labels = CosTaL.find_communities(X, seed=0)
     print(f"{len(cells)} of {counts.shape[0]} cells kept, {X.shape[1]} genes -> {labels.max() + 1} clusters")
     if truth is not None:
         from sklearn.metrics import adjusted_rand_score

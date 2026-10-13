@@ -1,7 +1,7 @@
 cff-version: 1.2.0
-message: "If you use CosTaL+, please cite the CosTaL paper."
-title: "CosTaL+"
-abstract: "A high-performance rewrite of CosTaL: exact cosine kNN graph, Tanimoto edge reweighting and Leiden community detection for single-cell data."
+message: "If you use CosTaL, please cite the CosTaL paper."
+title: "CosTaL"
+abstract: "Fast, exact graph-based clustering for single-cell data: exact cosine kNN graph, Tanimoto edge weights and Leiden community detection."
 type: software
 authors:
   - family-names: Li

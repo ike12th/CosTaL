@@ -5,8 +5,8 @@ Its accuracy is measured on real data in bench/multiscale.py; bench and API give
 import numpy as np
 import pytest
 
-import costal_plus as cp
-from costal_plus._multiscale import _adjacency, _carve
+import CosTaL as cp
+from CosTaL._multiscale import _adjacency, _carve
 
 
 def graph(edges):

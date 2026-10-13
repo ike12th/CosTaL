@@ -3,9 +3,9 @@ requires = ["maturin>=1.7,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "costal-plus"
+name = "CosTaL"
 version = "1.0.0"
-description = "Fast, exact graph-based clustering for single-cell data: CosTaL (cosine kNN, Tanimoto edge weights, Leiden) in Rust"
+description = "Fast, exact graph-based clustering for single-cell data: exact cosine kNN, Tanimoto edge weights, Leiden"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -23,34 +23,42 @@ classifiers = [
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-dependencies = ["numpy>=1.21"]
+# Everything the package does is installed with it. Windows on Arm has no wheels for leidenalg,
+# scanpy's numba or scikit-misc yet: there the kNN, graph and leiden="fast" work and those are skipped.
+dependencies = [
+    "numpy>=1.21; python_version >= '3.10'",
+    # scikit-misc 0.3, the last release for Python 3.9, is built against numpy 1.x
+    "numpy>=1.21,<2; python_version < '3.10'",
+    "scipy>=1.7",
+    "igraph>=0.10",
+    "leidenalg>=0.8; platform_system != 'Windows' or platform_machine != 'ARM64'",
+    "scanpy>=1.9; platform_system != 'Windows' or platform_machine != 'ARM64'",
+    "scikit-misc>=0.2; platform_system != 'Windows' or platform_machine != 'ARM64'",
+    "anndata>=0.8",
+    "pandas>=1.3",
+    "fcsparser>=0.2",
+    "scikit-learn>=1.0",
+]
 
 [project.optional-dependencies]
-# find_communities(), find_communities_multiscale(), costal-plus cluster: igraph; leidenalg for leiden="paper"
-leiden = ["igraph", "leidenalg"]
-# preprocess(platform="scrnaseq"): scanpy, and scikit-misc for the seurat_v3 HVG selection
-scrnaseq = ["scanpy", "scikit-misc"]
-# costal-plus cluster: CSV/TSV, FCS and .h5ad readers
-io = ["pandas", "fcsparser", "anndata"]
-all = ["costal-plus[leiden,scrnaseq,io]"]
-# benchmarks under bench/; not needed by users
-bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
-dev = ["pytest", "maturin>=1.7", "scipy", "scikit-learn"]
+# benchmarks under bench/ and development; not needed by users
+bench = ["hnswlib"]
+dev = ["pytest", "maturin>=1.7"]
 
 [project.urls]
 Homepage = "https://github.com/ike12th/costal-plus"
 Documentation = "https://github.com/ike12th/costal-plus/blob/main/docs/user_guide.md"
 Changelog = "https://github.com/ike12th/costal-plus/blob/main/CHANGELOG.md"
 Issues = "https://github.com/ike12th/costal-plus/issues"
-"Original CosTaL" = "https://github.com/li000678/CosTaL"
+"CosTaL 0.0.2 source" = "https://github.com/li000678/CosTaL"
 Paper = "https://doi.org/10.1093/bib/bbad157"
 
 [project.scripts]
-costal-plus = "costal_plus.cli:main"
+costal = "CosTaL.cli:main"
 
 [tool.maturin]
 manifest-path = "crates/costal-py/Cargo.toml"
-module-name = "costal_plus._costal_plus"
+module-name = "CosTaL._costal"
 python-source = "python"
 features = ["pyo3/extension-module"]
 strip = true

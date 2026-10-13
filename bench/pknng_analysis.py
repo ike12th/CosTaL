@@ -39,7 +39,7 @@ from stage_a import (  # noqa: E402
     ours_graph,
 )
 
-import costal_plus as cp  # noqa: E402
+import CosTaL as cp  # noqa: E402
 
 OUT = HERE / "out" / "pknng_analysis.json"
 

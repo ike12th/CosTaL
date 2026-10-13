@@ -54,7 +54,7 @@ from rare_populations import population_f1  # noqa: E402
 from stage_a import environment, label_scores  # noqa: E402
 from stage_c2 import build  # noqa: E402
 
-import costal_plus as cp  # noqa: E402
+import CosTaL as cp  # noqa: E402
 
 IMPL = os.environ.get("MULTISCALE_LEIDEN", "leidenalg")
 assert IMPL in ("leidenalg", "igraph"), IMPL

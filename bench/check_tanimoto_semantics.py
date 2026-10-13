@@ -18,9 +18,11 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "reference" / "CosTaL-0.0.2.4"))
+sys.path.insert(0, str(HERE))
 
-from CosTaL.clustering import pp, tani_from_cos  # noqa: E402
+from original import clustering as _original  # noqa: E402
+
+pp, tani_from_cos = _original().pp, _original().tani_from_cos
 from profile_costal import knn_blas_blocked, load_levine  # noqa: E402
 
 

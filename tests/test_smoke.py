@@ -3,21 +3,21 @@
 import numpy as np
 import pytest
 
-import costal_plus
+import CosTaL
 
 
 def test_hello_mentions_version():
-    assert costal_plus.core_version() in costal_plus.hello()
+    assert CosTaL.core_version() in CosTaL.hello()
 
 
 def test_wheel_and_core_versions_match():
-    assert costal_plus.__version__ == costal_plus.core_version()
+    assert CosTaL.__version__ == CosTaL.core_version()
 
 
 def test_row_l2_norms_matches_numpy():
     rng = np.random.default_rng(0)
     x = rng.standard_normal((257, 33), dtype=np.float32)
-    got = costal_plus.row_l2_norms(x)
+    got = CosTaL.row_l2_norms(x)
     want = np.linalg.norm(x, axis=1)
     assert got.dtype == np.float32
     assert got.shape == (257,)
@@ -27,7 +27,7 @@ def test_row_l2_norms_matches_numpy():
 def test_row_l2_norms_rejects_non_contiguous():
     x = np.zeros((8, 8), dtype=np.float32)[:, ::2]
     with pytest.raises(ValueError):
-        costal_plus.row_l2_norms(x)
+        CosTaL.row_l2_norms(x)
 
 
 def test_pyproject_version_matches_the_extension():
@@ -38,4 +38,4 @@ def test_pyproject_version_matches_the_extension():
     if not pyproject.exists():  # pragma: no cover - tests run outside the source tree
         pytest.skip("no pyproject.toml next to the tests")
     version = re.search(r'^version = "([^"]+)"', pyproject.read_text(), re.M).group(1)
-    assert version == costal_plus.__version__
+    assert version == CosTaL.__version__

@@ -1,5 +1,8 @@
 # Selection metric and pruning strategy (v0, 2026-09-20)
 
+> **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
+> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+
 > Answers two questions:
 > 1. Should cosine selection (+ Tanimoto edge weights) and Tanimoto selection be built as two versions?
 > 2. How do we write it without sacrificing speed or verifiability?

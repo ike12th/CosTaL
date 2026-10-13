@@ -1,11 +1,11 @@
-"""CosTaL+ command line: cluster a file without writing Python (docs/01 §3).
+"""CosTaL command line: cluster a file without writing Python (docs/01 §3).
 
-    costal-plus cluster cells.fcs --platform mass -o labels.csv
-    costal-plus cluster counts.h5ad --platform scrnaseq --multiscale
-    costal-plus info
+    costal cluster cells.fcs --platform mass -o labels.csv
+    costal cluster counts.h5ad --platform scrnaseq --multiscale
+    costal info
 
 Inputs: CSV / TSV (cells × features, header row; non-numeric columns are dropped), FCS, ``.npy``,
-and ``.h5ad`` (its ``.X``). The readers are optional: ``pip install costal-plus[io]``.
+and ``.h5ad`` (its ``.X``); the readers (pandas, fcsparser, anndata) are installed with CosTaL.
 The output has one row per input cell: its index and its cluster (``-1`` for a cell that scRNA-seq
 preprocessing dropped).
 """
@@ -75,7 +75,7 @@ def _read(path: Path, columns: list[str] | None, exclude: list[str]):
 
 
 def _cluster(args: argparse.Namespace) -> int:
-    import costal_plus as cp
+    import CosTaL as cp
 
     path = Path(args.input)
     t0 = time.perf_counter()
@@ -133,8 +133,8 @@ def _info() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="costal-plus", description="CosTaL+ CLI")
-    parser.add_argument("--version", action="version", version=f"costal-plus {__version__}")
+    parser = argparse.ArgumentParser(prog="costal", description="CosTaL command line")
+    parser.add_argument("--version", action="version", version=f"costal (CosTaL) {__version__}")
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("info", help="print build info to confirm the extension module is installed correctly")
 

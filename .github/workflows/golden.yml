@@ -1,7 +1,7 @@
 name: golden
 
 # Manual: run the p_knng_Linux binary bundled with the original CosTaL on x86-64 Linux to get the
-# L3 golden output and compare it with CosTaL+ (docs/04 §4). The dev machine is macOS arm64 and
+# L3 golden output and compare it with CosTaL 1.0 (docs/04 §4). The dev machine is macOS arm64 and
 # can't run this binary; GitHub's ubuntu runner can. Answers two open items: the .clu index base
 # (-writeZidx vs the original's columns − 1), and self-exclusion with duplicate cells.
 

@@ -1,22 +1,22 @@
-# CosTaL+
+# CosTaL
 
 **Fast, exact graph-based clustering for single-cell data** — mass, flow and spectral cytometry and
-scRNA-seq — implementing CosTaL: an exact cosine kNN graph, Tanimoto edge weights, Leiden
-community detection.
+scRNA-seq: an exact cosine kNN graph, Tanimoto edge weights, Leiden community detection.
 
 > Li Y, Nguyen J, Anastasiu DC, Arriaga EA. *CosTaL: an accurate and scalable graph-based clustering
 > algorithm for high-dimensional single-cell data analysis.* Briefings in Bioinformatics 24(3),
 > bbad157 (2023). https://doi.org/10.1093/bib/bbad157
 
-CosTaL+ succeeds the original `CosTaL` package. The kNN graph is computed in Rust, so you get:
+**CosTaL 1.0** rewrites CosTaL 0.0.2 with the kNN graph computed in Rust:
 
-- **The published method's results.** With no options, CosTaL+ is the published CosTaL: on nine of
-  the paper's datasets it finds the same neighbors as the original code for 100% of cells, and at the
-  same Leiden seed the same clusters on six; on the other three the original's float32 rounding of
-  the edge weights (≤ 6×10⁻⁷) sends Leiden elsewhere, at the same accuracy.
-- **Speed.** Graph construction is 13–208× faster than the original's own path. With igraph's
-  Leiden (`leiden="fast"`) the whole run is 17–197× faster, at the same accuracy.
+- **The published method's results.** With no options, CosTaL 1.0 is the published CosTaL: on nine
+  of the paper's datasets it finds the same neighbors as 0.0.2 for 100% of cells, and at the same
+  Leiden seed the same clusters on six; on the other three, 0.0.2's float32 rounding of the edge
+  weights (≤ 6×10⁻⁷) sends Leiden elsewhere, at the same accuracy.
+- **Speed.** Graph construction is 13–208× faster than 0.0.2's own path. With igraph's Leiden
+  (`leiden="fast"`) the whole run is 17–197× faster, at the same accuracy.
 - **Every platform.** macOS, Linux and Windows, with no external binary and no temporary files.
+- **0.0.2 code keeps working.** The same names, arguments and import paths.
 - **A command line** for clustering a file without writing code.
 - **Opt-in extras beyond the paper.** `find_communities_multiscale` recovers rare populations that
   any single resolution loses.
@@ -24,29 +24,31 @@ CosTaL+ succeeds the original `CosTaL` package. The kNN graph is computed in Rus
 ## Install
 
 ```bash
-pip install "costal-plus[all]"
-costal-plus info          # confirms the build
+pip install --upgrade CosTaL
+costal info          # confirms the build
 ```
 
-Python ≥ 3.9 on macOS (Apple silicon, Intel), Linux (x86-64, aarch64) and Windows (x64, arm64).
-Extras: `leiden` (igraph, leidenalg), `scrnaseq` (scanpy, scikit-misc), `io` (pandas, fcsparser,
-anndata); `all` installs all three. Building from source: [docs/development.md](docs/development.md).
+One command installs everything it uses: igraph and leidenalg (Leiden), scanpy and scikit-misc
+(scRNA-seq preprocessing), pandas, fcsparser and anndata (file readers), scikit-learn and scipy.
+Python ≥ 3.9 on macOS (Apple silicon, Intel), Linux (x86-64, aarch64) and Windows (x64, arm64);
+on Windows on Arm, leidenalg, scanpy and scikit-misc have no wheels yet, so `leiden="fast"` and the
+cytometry workflow work there. Building from source: [docs/development.md](docs/development.md).
 
 ## Use
 
 ```python
-import costal_plus
+import CosTaL
 
-X = costal_plus.preprocess(raw, "mass")         # the original pp(): "mass", "flow", "spectral flow", "scrnaseq"
-labels = costal_plus.find_communities(X)        # the published CosTaL
+X = CosTaL.preprocess(raw, "mass")          # "mass", "flow", "spectral flow" or "scrnaseq"
+labels = CosTaL.find_communities(X)         # the published CosTaL
 
-labels = costal_plus.find_communities(X, leiden="fast", resolution=0.4)   # faster; fewer, larger clusters
-labels = costal_plus.find_communities_multiscale(X)                       # keeps rare populations
+labels = CosTaL.find_communities(X, leiden="fast", resolution=0.4)   # faster; fewer, larger clusters
+labels = CosTaL.find_communities_multiscale(X)                       # keeps rare populations
 ```
 
 ```bash
-costal-plus cluster cells.fcs --platform mass --exclude Time,Event_length -o labels.csv
-costal-plus cluster counts.h5ad --platform scrnaseq --leiden fast
+costal cluster cells.fcs --platform mass --exclude Time,Event_length -o labels.csv
+costal cluster counts.h5ad --platform scrnaseq --leiden fast
 ```
 
 For scRNA-seq, `preprocess(counts, "scrnaseq", return_cells=True)` also returns which cells survived
@@ -54,49 +56,48 @@ quality filtering, so labels stay aligned. More in the **[user guide](docs/user_
 data preparation, the pipeline step by step, the full API and command line, choosing parameters,
 reproducibility, and memory.
 
-## Coming from CosTaL
+## Upgrading from 0.0.2
 
-Old scripts run unchanged on CosTaL+ by changing one line:
+0.0.2 code runs unchanged:
 
 ```python
-from costal_plus import legacy as CosTaL      # was: import CosTaL
-labels = CosTaL.find_communities(X, pp_method="mass", nbr_num=10, resolution=0.8)
+import CosTaL
+labels = CosTaL.find_communities(X, pp_method="mass", nbr_num=10, resolution=0.8)   # a list, as before
+scores = CosTaL.return_scores(truth, labels)
 ```
 
-`pip install "CosTaL>=0.1"` installs a compatibility package that does this for you. The
-[migration guide](docs/user_guide.md#11-migrating-from-costal-002) maps every function and lists the
-differences. Two of them change results in rare cases, and both fix bugs in the original:
+The [upgrade guide](docs/user_guide.md#11-upgrading-from-costal-002) lists every 0.0.2 function and
+what changed. Two differences change results in rare cases, and both fix bugs in 0.0.2:
 
-- The original `p_knng` binary assumes non-negative input, so on arcsinh-transformed cytometry it
-  returned slightly wrong neighbors. CosTaL+ computes the exact kNN the paper describes.
-- The original macOS/Windows path kept a duplicated cell in its own neighbor list. CosTaL+ excludes
-  it, on every platform.
+- 0.0.2's `p_knng` binary assumes non-negative input, so on arcsinh-transformed cytometry it returned
+  slightly wrong neighbors. 1.0 computes the exact kNN the paper describes.
+- 0.0.2's macOS/Windows path kept a duplicated cell in its own neighbor list. 1.0 excludes it, on
+  every platform.
 
 ## Speed at identical results
 
 Measured end to end on one Apple M1 Pro: kNN, weights, graph, and Leiden at the paper's settings.
-"Original" is the original code's own kNN path. Details in
-[docs/03 §10.4](docs/03_architecture_and_plan.md).
+"0.0.2" is its own kNN path. Details in [docs/03 §10.4](docs/03_architecture_and_plan.md).
 
-| Dataset | Cells × features | Original | CosTaL+ | CosTaL+, `leiden="fast"` | Graph only | Same neighbors |
+| Dataset | Cells × features | 0.0.2 | 1.0 | 1.0, `leiden="fast"` | Graph only | Same neighbors |
 |---|---|---:|---:|---:|---:|---:|
 | GSE84133 (pancreas) | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.21 s (195×) | 208× | 100% |
 | Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 2.3 s (39×) | 39× | 100% |
 | Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% |
 | Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% |
 
-With the paper's Leiden settings, leidenalg itself takes 80–97% of CosTaL+'s time; `leiden="fast"`
+With the paper's Leiden settings, leidenalg itself takes 80–97% of 1.0's time; `leiden="fast"`
 removes that bottleneck. Accuracy against the labels is the same within Leiden's run-to-run noise in
 every case.
 
 ## Documentation
 
-- [User guide](docs/user_guide.md): installation, quick start, API, command line, parameters, migration.
+- [User guide](docs/user_guide.md): installation, quick start, API, command line, parameters, upgrading.
 - [Changelog](CHANGELOG.md).
 - [Development](docs/development.md): building, testing, benchmarks, releasing.
-- Design notes and every measurement behind this README:
+- Design notes and every measurement behind this README (written under the working name "CosTaL+"):
   - [01 Technical plan](docs/01_technical_plan.md)
-  - [02 The original's profile](docs/02_original_profile_report.md)
+  - [02 Profile of 0.0.2](docs/02_original_profile_report.md)
   - [03 Architecture and results](docs/03_architecture_and_plan.md)
   - [04 Selection metric and pruning](docs/04_selection_metric_and_pruning.md)
   - [05 Resolution limit](docs/05_resolution_limit_and_stopping.md)

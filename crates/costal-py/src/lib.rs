@@ -1,8 +1,8 @@
-//! PyO3 bindings for CosTaL+. Only type conversion and error mapping live here; the algorithms
+//! PyO3 bindings for CosTaL. Only type conversion and error mapping live here; the algorithms
 //! are in `costal-core`.
 //!
-//! Functions starting with an underscore are low-level entry points for the `costal_plus`
-//! package itself; the public API is on the Python side (`python/costal_plus/_api.py`), together
+//! Functions starting with an underscore are low-level entry points for the `CosTaL`
+//! package itself; the public API is on the Python side (`python/CosTaL/_api.py`), together
 //! with argument validation and input diagnostics.
 
 use costal_core::knn::{self, Knn, KnnParams, Select};
@@ -256,7 +256,7 @@ fn default_matmul() -> &'static str {
 }
 
 #[pymodule]
-fn _costal_plus(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _costal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(hello, m)?)?;
     m.add_function(wrap_pyfunction!(core_version, m)?)?;

@@ -1,18 +1,18 @@
-# Developing CosTaL+
+# Developing CosTaL
 
 ## Layout
 
 ```
 crates/costal-core/   Rust: exact kNN kernel (knn.rs), matmul backends, cache detection,
                       edge weights (weight.rs), fuzzy-union symmetrization (graph.rs)
-crates/costal-py/     PyO3 bindings → the costal_plus._costal_plus extension module
-python/costal_plus/   Python API: _api.py (knn … find_communities), _preprocess.py,
+crates/costal-py/     PyO3 bindings → the CosTaL._costal extension module
+python/CosTaL/   Python API: _api.py (knn … find_communities), _preprocess.py,
                       _multiscale.py, legacy.py (CosTaL 0.0.2 compatibility), cli.py
 tests/                pytest suite (also run against built wheels)
 examples/             runnable examples, executed by the test suite
-bench/                benchmarks and experiments behind the design documents
+bench/                benchmarks and experiments behind the design documents (bench/original.py
+                      loads the 0.0.2.4 source under its own name, next to 1.0)
 docs/                 user guide, design documents 01–06, this file, release notes
-packaging/            the CosTaL compatibility package for retiring the original
 ```
 
 ## Build and test
@@ -20,8 +20,8 @@ packaging/            the CosTaL compatibility package for retiring the original
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y   # Rust (stable; see rust-toolchain.toml)
 python -m venv .venv && . .venv/bin/activate          # use a native interpreter (arm64 on Apple silicon)
-pip install maturin pytest scipy
-pip install -e ".[all]" --no-build-isolation
+pip install maturin pytest
+pip install -e . --no-build-isolation        # also installs every runtime dependency
 scripts/dev.sh                                         # fmt + clippy + cargo test + build + pytest
 ```
 
@@ -55,7 +55,7 @@ docs/06 §1).
 | `CI` with `all_os` | manual dispatch, `v*` tags | the same on macOS and Windows too |
 | `wheels` | `v*` tags, manual dispatch | wheels for 8 platforms + sdist, each native wheel installed and tested; publishes to PyPI when a GitHub release is published |
 | `bench` | manual | `bench/stage_a.py` on x86-64 Linux |
-| `golden` | manual | the original `p_knng_Linux` binary against CosTaL+ on Levine |
+| `golden` | manual | 0.0.2's `p_knng_Linux` binary against 1.0 on Levine |
 
 The repository's Actions minutes are limited (macOS counts 10x, Windows 2x): run the all-OS and
 manual workflows when a change needs them.

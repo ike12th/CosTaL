@@ -41,8 +41,8 @@ from rare_populations import population_f1  # noqa: E402
 from stage_a import environment, label_scores, load_levine  # noqa: E402
 from small_datasets import leiden  # noqa: E402
 
-import costal_plus as cp  # noqa: E402
-from costal_plus import _costal_plus as ext  # noqa: E402
+import CosTaL as cp  # noqa: E402
+from CosTaL import _costal as ext  # noqa: E402
 
 OUT = HERE / "out" / "local_scaling.json"
 K = 10

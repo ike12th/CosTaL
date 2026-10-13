@@ -33,8 +33,8 @@ K = 10
 SEED = 0
 SEEDS = range(5)
 
-import costal_plus as cp  # noqa: E402
-from costal_plus import _costal_plus as ext  # noqa: E402
+import CosTaL as cp  # noqa: E402
+from CosTaL import _costal as ext  # noqa: E402
 
 NON_MARKER = {
     "Time", "Cell_length", "DNA1", "DNA2", "Viability",
@@ -180,13 +180,11 @@ def cmd_speed() -> None:
 
 
 def original_clustering():
-    """The original CosTaL clustering module (the 0.0.2.4 source in bench/reference)."""
-    import importlib  # noqa: PLC0415
+    """The original CosTaL clustering module (the 0.0.2.4 source in bench/reference), loaded under its
+    own name next to CosTaL 1.0 (bench/original.py)."""
+    from original import clustering  # noqa: PLC0415
 
-    if str(REFERENCE) not in sys.path:
-        sys.path.insert(0, str(REFERENCE))
-    # CosTaL/__init__.py exports a function named clustering that shadows the module, so import it by module name
-    return importlib.import_module("CosTaL.clustering")
+    return clustering()
 
 
 def original_graph(x: np.ndarray, k: int):

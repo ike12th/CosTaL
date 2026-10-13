@@ -17,9 +17,9 @@ from sklearn.preprocessing import normalize
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(HERE / "reference" / "CosTaL-0.0.2.4"))
+from original import clustering as _original  # noqa: E402
 
-from CosTaL.clustering import pp  # noqa: E402
+pp = _original().pp
 from profile_costal import load_levine  # noqa: E402
 
 

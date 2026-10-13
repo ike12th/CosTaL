@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _costal_plus as _ext
+from . import _costal as _ext
 
 __all__ = [
     "CostalWarning",
@@ -302,7 +302,7 @@ def build_graph(
 
     Hand it to Leiden the same way as the original::
 
-        rows, cols, w = costal_plus.build_graph(X)
+        rows, cols, w = CosTaL.build_graph(X)
         G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]),
                          edge_attrs={"weight": w})
     """
@@ -330,6 +330,11 @@ _LEIDEN = {
 }
 
 
+# The keyword arguments of CosTaL 0.0.2's find_communities (docs/user_guide.md §11)
+_LEGACY_ARGS = ("pp_method", "method", "nbr_num", "partition_type", "local", "verbose",
+                "keep_temp_files", "temp_name")
+
+
 def find_communities(
     X: Any,
     k: int = 10,
@@ -343,8 +348,65 @@ def find_communities(
     seed: int | None = None,
     compat: str | None = None,
     n_threads: int | None = None,
-) -> np.ndarray:
+    **legacy: Any,
+) -> Any:
     """End to end: exact kNN → edge weights → fuzzy union → Leiden. Returns ``(n,)`` int64 labels.
+
+    With no optional arguments this is the published CosTaL (docs/04 §0.0): cosine selection,
+    Tanimoto weights, fuzzy-union symmetrization, then leidenalg's RBConfiguration partition at
+    resolution 0.8 with 10 iterations.
+
+    Args:
+        leiden: ``"paper"`` uses leidenalg exactly as published; ``"fast"`` uses igraph's native
+            Leiden on the same modularity objective (docs/03 §9.1).
+        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 for ``"fast"``.
+            Negative runs until the partition is stable.
+        seed: Leiden seed. For ``"fast"`` it seeds Python's ``random`` module, which python-igraph
+            draws from.
+        compat: ``"paper"`` refuses any setting that departs from the published method.
+
+    CosTaL 0.0.2 calls keep working: with its arguments (``pp_method``, ``method``, ``nbr_num``,
+    ``partition_type``, ``local``, ``verbose``, ``keep_temp_files``, ``temp_name``, or the
+    preprocessing platform as the second positional argument) this runs the 0.0.2 interface and
+    returns a list, as 0.0.2 did.
+    """
+    if isinstance(k, str) or legacy:
+        unknown = sorted(set(legacy) - set(_LEGACY_ARGS))
+        if unknown:
+            raise TypeError(f"find_communities() got unexpected keyword arguments {unknown}")
+        new_style = {"select": (select, "cosine"), "weight": (weight, "tanimoto"), "normalize": (normalize, None),
+                     "leiden": (leiden, "paper"), "n_iterations": (n_iterations, None), "compat": (compat, None)}
+        mixed = [name for name, (value, default) in new_style.items() if value != default]
+        if mixed:
+            raise ValueError(f"find_communities(): {mixed} can't be combined with CosTaL 0.0.2's arguments "
+                             f"{sorted(legacy) or ['pp_method']}; use one interface or the other")
+        if isinstance(k, str):
+            legacy.setdefault("pp_method", k)  # 0.0.2's second positional argument
+        elif k != 10:
+            legacy.setdefault("nbr_num", k)
+        from ._legacy import find_communities as find_communities_002
+
+        return find_communities_002(X, resolution=resolution, seed=seed, n_threads=n_threads, **legacy)
+    return _find_communities(X, k, select=select, weight=weight, normalize=normalize, resolution=resolution,
+                             leiden=leiden, n_iterations=n_iterations, seed=seed, compat=compat,
+                             n_threads=n_threads)
+
+
+def _find_communities(
+    X: Any,
+    k: int = 10,
+    *,
+    select: str = "cosine",
+    weight: str = "tanimoto",
+    normalize: str | None = None,
+    resolution: float = 0.8,
+    leiden: str = "paper",
+    n_iterations: int | None = None,
+    seed: int | None = None,
+    compat: str | None = None,
+    n_threads: int | None = None,
+) -> np.ndarray:
+    """The implementation of :func:`find_communities` (its new interface).
 
     With no optional arguments this is the published CosTaL (docs/04 §0.0): cosine selection,
     Tanimoto weights, fuzzy-union symmetrization, then leidenalg's RBConfiguration partition at
@@ -359,7 +421,8 @@ def find_communities(
             draws from.
         compat: ``"paper"`` refuses any setting that departs from the published method.
 
-    Needs ``igraph`` (and ``leidenalg`` for ``"paper"``): ``pip install costal-plus[leiden]``.
+    Uses ``igraph``, and ``leidenalg`` for ``"paper"`` (both installed with CosTaL; on Windows
+    on Arm leidenalg has no wheels yet, so use ``leiden="fast"`` there).
     """
     if leiden not in _LEIDEN:
         raise ValueError(f"leiden must be one of {tuple(_LEIDEN)}, got {leiden!r}")
@@ -375,7 +438,7 @@ def find_communities(
     try:
         import igraph  # noqa: F401  (fail before the expensive kNN, not after)
     except ImportError as exc:  # pragma: no cover - depends on the environment
-        raise ImportError("find_communities needs igraph: pip install costal-plus[leiden]") from exc
+        raise ImportError("find_communities needs igraph: pip install igraph") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     w = reweight(g, weight)
@@ -388,7 +451,8 @@ def find_communities(
             import leidenalg as la
         except ImportError as exc:  # pragma: no cover - depends on the environment
             raise ImportError(
-                "leiden='paper' needs leidenalg: pip install costal-plus[leiden]"
+                "leiden='paper' needs leidenalg (pip install leidenalg; it has no Windows-on-Arm "
+                "wheels yet: there, use leiden='fast')"
             ) from exc
         part = la.find_partition(graph, la.RBConfigurationVertexPartition, weights="weight",
                                  n_iterations=iterations, resolution_parameter=resolution,

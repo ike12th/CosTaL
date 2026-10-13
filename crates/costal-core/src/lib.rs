@@ -1,4 +1,4 @@
-//! CosTaL+ core.
+//! CosTaL core.
 //!
 //! Pure Rust with no Python dependency. The actual algorithms (kNN graph / Tanimoto edge
 //! weights / community detection) live here; `costal-py` only does bindings, no logic.
@@ -19,7 +19,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Skeleton self-check: returns a greeting that includes the version.
 pub fn hello() -> String {
-    format!("CosTaL+ core v{VERSION} is alive")
+    format!("CosTaL core v{VERSION} is alive")
 }
 
 /// Row-wise L2 norms.

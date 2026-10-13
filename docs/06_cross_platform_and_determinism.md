@@ -1,5 +1,8 @@
 # Cross-platform, determinism, and backend selection (v0, 2026-10-12)
 
+> **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
+> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+
 > Background: the fused blocking in docs/03 was designed with one M1 Pro in mind, but the delivery surface is
 > macOS / Linux / Windows, desktop and server (docs/01 §3). These classes of machines differ in cache structure,
 > matrix libraries, and core types. This document answers: **how can the same code be fast on every platform,

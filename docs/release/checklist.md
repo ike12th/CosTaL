@@ -10,7 +10,7 @@ and irreversible: they are done by the maintainer, never by an automated job on 
 - [ ] `CHANGELOG.md`: the release's section with its date; anything that changes a default is a
       major version (docs/04 §6.5).
 - [ ] `CITATION.cff`: `version`.
-- [ ] `docs/user_guide.md` matches the API (`python -c "import costal_plus, inspect; ..."` spot checks;
+- [ ] `docs/user_guide.md` matches the API (`python -c "import CosTaL, inspect; ..."` spot checks;
       the examples in `examples/` run in the test suite).
 - [ ] Local: `scripts/dev.sh` passes (fmt, clippy, `cargo test`, pytest).
 
@@ -26,7 +26,7 @@ and irreversible: they are done by the maintainer, never by an automated job on 
 ## 3. Tag
 
 ```bash
-git tag -a v1.0.0 -m "CosTaL+ 1.0.0"
+git tag -a v1.0.0 -m "CosTaL 1.0.0"
 git push origin v1.0.0
 ```
 
@@ -34,21 +34,22 @@ The tag re-runs `CI` (all platforms) and `wheels`.
 
 ## 4. Publish to PyPI (maintainer)
 
-One-time setup: on pypi.org create the project `costal-plus` through a *pending trusted publisher*
-(owner/repository of this GitHub repository, workflow `wheels.yml`, environment `pypi`), and in the
-repository settings create the environment `pypi` (optionally with a required reviewer).
+One-time setup: the PyPI project is the existing `CosTaL` (0.0.2.4 and earlier). As its owner, on
+pypi.org → *Your projects → CosTaL → Settings → Publishing*, add a trusted publisher: this GitHub
+repository (owner and name), workflow `wheels.yml`, environment `pypi`. In the repository settings,
+create the environment `pypi` (optionally with a required reviewer).
 
 Then on GitHub: *Releases → Draft a new release* from the tag, paste the CHANGELOG section, *Publish*.
 Publishing the release runs the `publish` job of `wheels.yml`, which uploads the wheels and the sdist
-built for that tag. Check https://pypi.org/project/costal-plus/ and, in a fresh environment:
+built for that tag. Check https://pypi.org/project/CosTaL/ and, in a fresh environment:
 
 ```bash
-pip install "costal-plus[all]" && costal-plus info && python -c "import costal_plus; print(costal_plus.__version__)"
+pip install --upgrade CosTaL && costal info && python -c "import CosTaL; print(CosTaL.__version__)"
 ```
 
 Without trusted publishing: download the `wheels-*` artifacts into `dist/` and run
 `twine upload dist/*`.
 
-## 5. Retire the original CosTaL
+## 5. Point the 0.0.2 repository here
 
 See [retire_original_costal.md](retire_original_costal.md).

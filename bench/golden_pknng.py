@@ -39,7 +39,7 @@ sys.path.insert(0, str(HERE))
 
 from stage_a import K, REFERENCE, load_levine, original_clustering  # noqa: E402
 
-import costal_plus as cp  # noqa: E402
+import CosTaL as cp  # noqa: E402
 
 OUT = HERE / "out" / "golden_pknng.json"
 CLU_DIR = HERE / "out" / "golden"

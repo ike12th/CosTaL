@@ -212,9 +212,9 @@ def load(name: str) -> Dataset:
 
 
 def preprocess(ds: Dataset, preset: str = "paper") -> tuple[np.ndarray, np.ndarray]:
-    """The original ``pp()`` via ``costal_plus.preprocess`` (docs/04 §6.7): the dense float32
+    """The original ``pp()`` via ``CosTaL.preprocess`` (docs/04 §6.7): the dense float32
     matrix and the indices of the cells kept. Cytometry: arcsinh with the platform's cofactor."""
-    import costal_plus as cp
+    import CosTaL as cp
 
     if ds.kind == "cytometry":
         return cp.preprocess(ds.x, PLATFORM[ds.name], return_cells=True)

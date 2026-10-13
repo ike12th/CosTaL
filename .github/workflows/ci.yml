@@ -75,12 +75,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # scipy: tests/test_knn.py compares bit for bit against the original scipy symmetrization
-      - run: pip install --upgrade pip maturin pytest numpy scipy
-      # Optional: the find_communities tests skip if these have no wheel for this platform
-      - run: pip install igraph leidenalg || echo "igraph/leidenalg unavailable; their tests will skip"
-      # scikit-misc 0.3.1 (the last for Python 3.9) is built against numpy 1.x
-      - run: pip install scanpy scikit-misc ${{ matrix.python == '3.9' && '"numpy<2"' || '' }} || echo "scanpy/scikit-misc unavailable; the scRNA-seq preprocess tests will skip"
+      - run: pip install --upgrade pip maturin pytest
+      # installs every runtime dependency through the package metadata, exactly as users get them
+      # (numpy < 2 on Python 3.9 included)
       - run: pip install -e . --no-build-isolation
       - run: pytest -q
-      - run: costal-plus info
+      - run: costal info

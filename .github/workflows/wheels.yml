@@ -48,12 +48,10 @@ jobs:
         if: ${{ !contains(matrix.platform.target, 'aarch64-unknown-linux') && !contains(matrix.platform.target, 'musl') && !(contains(matrix.platform.target, 'x86_64-apple') && contains(matrix.platform.runner, 'macos-14')) }}
         shell: bash
         run: |
-          pip install --find-links dist --force-reinstall costal-plus
-          python -c "import costal_plus; print(costal_plus.hello())"
-          costal-plus info
-          # the optional dependencies may lack wheels on some platforms; their tests then skip
-          pip install pytest scipy scikit-learn pandas || true
-          pip install igraph leidenalg || true
+          # the wheel's metadata pulls in every runtime dependency, as for users
+          pip install --find-links dist CosTaL pytest
+          python -c "import CosTaL; print(CosTaL.hello())"
+          costal info
           # run from outside the source tree so the installed wheel is what gets tested
           cp -r tests examples packaging bench pyproject.toml "$RUNNER_TEMP/" && cd "$RUNNER_TEMP"
           python -m pytest tests -q -p no:cacheprovider

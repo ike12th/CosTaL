@@ -53,7 +53,7 @@ def preprocess(
 
     Returns:
         A dense float32 matrix (and the kept cell indices if ``return_cells``). scRNA-seq needs
-        ``scanpy`` and ``scikit-misc``: ``pip install costal-plus[scrnaseq]``.
+        ``scanpy`` and ``scikit-misc``, installed with CosTaL (except on Windows on Arm).
     """
     if compat not in (None, "paper"):
         raise ValueError(f"compat must be None or 'paper', got {compat!r}")
@@ -84,7 +84,8 @@ def preprocess(
         import anndata
         import scanpy as sc
     except ImportError as exc:  # pragma: no cover - depends on the environment
-        raise ImportError("platform='scrnaseq' needs scanpy: pip install costal-plus[scrnaseq]") from exc
+        raise ImportError("platform='scrnaseq' needs scanpy and scikit-misc (installed with CosTaL except "
+                          "on Windows on Arm, where they have no wheels yet)") from exc
 
     n = X.shape[0]
     ad = anndata.AnnData(X=X.copy() if hasattr(X, "copy") else np.array(X))

@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE / "reference" / "CosTaL-0.0.2.4"))
+sys.path.insert(0, str(HERE))
 
 import igraph as ig  # noqa: E402
 import leidenalg as la  # noqa: E402
@@ -43,13 +43,11 @@ from scipy import sparse as sp  # noqa: E402
 from scipy.linalg import norm as dense_norm  # noqa: E402
 from sklearn.preprocessing import normalize  # noqa: E402
 
-from CosTaL.clustering import (  # noqa: E402
-    build_tani_graph,
-    la_find_partition,
-    pp,
-    save_as_ijv,
-    tani_from_cos,
-)
+from original import clustering as _original  # noqa: E402
+
+_c = _original()  # the 0.0.2.4 functions being profiled
+build_tani_graph, la_find_partition, pp, save_as_ijv, tani_from_cos = (
+    _c.build_tani_graph, _c.la_find_partition, _c.pp, _c.save_as_ijv, _c.tani_from_cos)
 
 TIMINGS: dict[str, float] = {}
 

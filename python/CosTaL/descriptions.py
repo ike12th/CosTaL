@@ -1,6 +1,6 @@
-"""CosTaL 0.0.2's evaluation helpers, as ported to CosTaL+."""
+"""CosTaL 0.0.2's ``CosTaL.descriptions`` module: the clustering-evaluation helpers."""
 
-from costal_plus.legacy import (
+from ._legacy import (
     calculate_sparsity,
     get_f1_matrix,
     get_rare_f1,

@@ -8,7 +8,7 @@ import sys
 
 import numpy as np
 
-import costal_plus
+import CosTaL
 
 
 def synthetic(n=3000, markers=12, populations=6, seed=0):
@@ -31,8 +31,8 @@ def main(argv):
         raw, truth = synthetic()
         platform = "mass"
 
-    X = costal_plus.preprocess(raw, platform)
-    labels = costal_plus.find_communities(X, seed=0)
+    X = CosTaL.preprocess(raw, platform)
+    labels = CosTaL.find_communities(X, seed=0)
     sizes = np.bincount(labels)
     print(f"{len(X)} cells, {X.shape[1]} markers -> {len(sizes)} clusters; sizes {sorted(sizes, reverse=True)}")
     if truth is not None:

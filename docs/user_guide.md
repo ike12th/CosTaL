@@ -1,10 +1,11 @@
-# CosTaL+ user guide
+# CosTaL user guide
 
-CosTaL+ clusters single-cell data — mass, flow and spectral cytometry, scRNA-seq — with the CosTaL
-method (Li et al., *Briefings in Bioinformatics* 2023): an **exact** cosine kNN graph, Tanimoto edge
-weights, and Leiden community detection. It is a rewrite of the original `CosTaL` package with the
-kNN graph built in Rust: with no options it gives the same clusters as the published method, tens to
-hundreds of times faster, on every platform, with no external binary and no temporary files.
+CosTaL clusters single-cell data — mass, flow and spectral cytometry, scRNA-seq — with the method of
+Li et al., *Briefings in Bioinformatics* 2023: an **exact** cosine kNN graph, Tanimoto edge weights,
+and Leiden community detection. Version 1.0 is a rewrite of CosTaL 0.0.2 with the kNN graph built in
+Rust: with no options it gives the same clusters as the published method, tens to hundreds of times
+faster, on every platform, with no external binary and no temporary files. Code written for 0.0.2
+keeps working (section 11).
 
 Contents
 
@@ -18,7 +19,7 @@ Contents
 8. [Choosing parameters](#8-choosing-parameters)
 9. [Reproducibility](#9-reproducibility)
 10. [Performance and memory](#10-performance-and-memory)
-11. [Migrating from CosTaL 0.0.2](#11-migrating-from-costal-002)
+11. [Upgrading from CosTaL 0.0.2](#11-upgrading-from-costal-002)
 12. [Troubleshooting](#12-troubleshooting)
 
 ---
@@ -26,22 +27,24 @@ Contents
 ## 1. Installation
 
 ```bash
-pip install "costal-plus[all]"
+pip install CosTaL
 ```
 
-`costal-plus` itself needs only numpy. The optional parts are grouped as extras:
+This installs everything CosTaL 1.0 uses:
 
-| Extra | Installs | Needed for |
-|---|---|---|
-| `leiden` | igraph, leidenalg | `find_communities`, `find_communities_multiscale`, `costal-plus cluster` |
-| `scrnaseq` | scanpy, scikit-misc | `preprocess(..., "scrnaseq")` |
-| `io` | pandas, fcsparser, anndata | reading CSV / FCS / h5ad in `costal-plus cluster` |
-| `all` | all of the above | |
+| For | Packages |
+|---|---|
+| Leiden (`find_communities`, `find_communities_multiscale`) | igraph, leidenalg |
+| scRNA-seq preprocessing (`preprocess(..., "scrnaseq")`) | scanpy, scikit-misc |
+| Reading CSV / FCS / h5ad in `costal cluster` | pandas, fcsparser, anndata |
+| `CosTaL.legacy.return_scores` | scikit-learn, scipy |
+
+On Python 3.9, numpy is held below 2.0, because scikit-misc's last release for 3.9 needs numpy 1.x.
 
 Check the installation:
 
 ```bash
-costal-plus info
+costal info
 ```
 
 prints the version, the platform and the matrix-multiplication backend (`accelerate` on macOS,
@@ -49,15 +52,18 @@ prints the version, the platform and the matrix-multiplication backend (`acceler
 
 **Platforms.** Wheels are built for macOS (Apple silicon and Intel), Linux (x86-64 and aarch64, glibc
 and musl) and Windows (x64 and arm64). One wheel per platform covers CPython 3.9 and later (abi3).
-On Windows on Arm, igraph and leidenalg publish no wheels yet: `preprocess`, `knn`, `reweight` and
-`build_graph` work, while the Leiden-based functions need those two packages built from source.
+On Windows on Arm, leidenalg, scanpy and scikit-misc publish no wheels yet, so they are skipped
+there: everything works except `leiden="paper"` (use `leiden="fast"`) and scRNA-seq preprocessing.
+On musl-based Linux (Alpine), several scientific dependencies have no wheels; install with
+`pip install --no-deps CosTaL` and then the dependencies your workflow needs
+(`numpy igraph leidenalg` for cytometry).
 
 **From source** (any platform with a Rust toolchain):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 git clone https://github.com/ike12th/costal-plus && cd costal-plus
-pip install maturin && pip install ".[all]"
+pip install maturin && pip install .
 ```
 
 > **macOS and conda**: some conda Pythons are x86-64 builds running under Rosetta. They work, but run
@@ -72,24 +78,24 @@ pip install maturin && pip install ".[all]"
 
 ```python
 import fcsparser
-import costal_plus
+import CosTaL
 
 _, df = fcsparser.parse("cells.fcs", reformat_meta=True)
 markers = [c for c in df.columns if c not in ("Time", "Event_length", "label")]
 
-X = costal_plus.preprocess(df[markers], "mass")      # arcsinh(x/5); "flow": x/150; "spectral flow": x/6000
-labels = costal_plus.find_communities(X)             # the published CosTaL
+X = CosTaL.preprocess(df[markers], "mass")      # arcsinh(x/5); "flow": x/150; "spectral flow": x/6000
+labels = CosTaL.find_communities(X)             # the published CosTaL
 ```
 
 ### scRNA-seq
 
 ```python
 import anndata
-import costal_plus
+import CosTaL
 
 ad = anndata.read_h5ad("counts.h5ad")                # raw UMI counts, cells × genes
-X, cells = costal_plus.preprocess(ad.X, "scrnaseq", return_cells=True)
-labels = costal_plus.find_communities(X)
+X, cells = CosTaL.preprocess(ad.X, "scrnaseq", return_cells=True)
+labels = CosTaL.find_communities(X)
 ad = ad[cells]                                       # cells with < 200 detected genes were dropped
 ad.obs["costal"] = labels.astype(str)
 ```
@@ -97,9 +103,9 @@ ad.obs["costal"] = labels.astype(str)
 ### From the command line
 
 ```bash
-costal-plus cluster cells.fcs --platform mass --exclude Time,Event_length -o labels.csv
-costal-plus cluster counts.h5ad --platform scrnaseq --leiden fast
-costal-plus cluster cells.fcs --platform flow --multiscale        # keeps rare populations
+costal cluster cells.fcs --platform mass --exclude Time,Event_length -o labels.csv
+costal cluster counts.h5ad --platform scrnaseq --leiden fast
+costal cluster cells.fcs --platform flow --multiscale        # keeps rare populations
 ```
 
 The output has one row per input cell: `cell,cluster`.
@@ -107,9 +113,9 @@ The output has one row per input cell: `cell,cluster`.
 ### Faster, or finer
 
 ```python
-labels = costal_plus.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
-labels = costal_plus.find_communities(X, resolution=0.4)        # fewer, larger clusters
-labels = costal_plus.find_communities_multiscale(X)             # rare populations kept (section 5)
+labels = CosTaL.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
+labels = CosTaL.find_communities(X, resolution=0.4)        # fewer, larger clusters
+labels = CosTaL.find_communities_multiscale(X)             # rare populations kept (section 5)
 ```
 
 ---
@@ -130,13 +136,13 @@ what the original `pp()` produced:
   scipy sparse matrix. Select the marker columns yourself: leave out time, event length, DNA,
   viability, bead and barcode channels unless you mean to cluster on them.
 - **scRNA-seq drops cells.** Pass `return_cells=True` to get the indices of the cells kept and subset
-  your labels or AnnData with them; CosTaL+ warns (`CostalWarning`) whenever a cell was dropped.
+  your labels or AnnData with them; CosTaL 1.0 warns (`CostalWarning`) whenever a cell was dropped.
 - `preset="normalize_total"` (scRNA-seq) scales each cell to the median library size before `log1p`.
   The paper's preprocessing has no library-size normalization, so its row norms mostly measure
   sequencing depth; on the paper's four scRNA-seq sets this preset was never worse and less
   sensitive to the resolution (docs/04 §6.7). It is opt-in; the default stays the paper's.
 - **Don't** feed PCA scores, z-scored or Pearson-residual data, or unit-normalized rows: Tanimoto
-  weights use the row norm as "overall abundance", which those transforms remove or change. CosTaL+
+  weights use the row norm as "overall abundance", which those transforms remove or change. CosTaL 1.0
   detects these cases and warns (`CostalWarning`), but clusters anyway.
 
 ---
@@ -146,11 +152,11 @@ what the original `pp()` produced:
 `find_communities` is four steps. Calling them yourself lets you do the expensive one once:
 
 ```python
-g = costal_plus.knn(X, k=30)                     # exact kNN: the only expensive step
-w = costal_plus.reweight(g, "tanimoto")          # edge weights, ~milliseconds
-g10 = costal_plus.truncate(g, 10)                # the exact 10-NN, for free
+g = CosTaL.knn(X, k=30)                     # exact kNN: the only expensive step
+w = CosTaL.reweight(g, "tanimoto")          # edge weights, ~milliseconds
+g10 = CosTaL.truncate(g, 10)                # the exact 10-NN, for free
 
-rows, cols, weights = costal_plus.build_graph(X, k=10)   # kNN → Tanimoto → fuzzy union, in one call
+rows, cols, weights = CosTaL.build_graph(X, k=10)   # kNN → Tanimoto → fuzzy union, in one call
 
 import igraph, leidenalg as la
 G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]), edge_attrs={"weight": weights})
@@ -183,7 +189,7 @@ the rest of the cluster it came from. A real sub-population inside a large clust
 the rest; a fragment cut out of a homogeneous population has many.
 
 ```python
-labels, info = costal_plus.find_communities_multiscale(X, return_info=True)
+labels, info = CosTaL.find_communities_multiscale(X, return_info=True)
 print(info["clusters"], len(info["carved"]))
 ```
 
@@ -205,7 +211,7 @@ by default) or populations that are not cohesive in the kNN graph.
 
 All functions take a cells × features matrix `X` (numpy array or anything `np.asarray` accepts;
 converted to float32 internally) and return numpy arrays. Errors are `ValueError` / `TypeError`;
-advice is a `costal_plus.CostalWarning`.
+advice is a `CosTaL.CostalWarning`.
 
 ### `preprocess(X, platform, *, preset="paper", n_top_genes=2000, return_cells=False, compat=None)`
 
@@ -279,21 +285,21 @@ weights as the original `build_graph`.
 
 ### Diagnostics
 
-`costal-plus info` / `costal_plus.default_matmul()`, `l2_bytes_per_thread()`, `tile_budget_bytes()`
-report the build and the cache sizes the kernel tiles for. `costal_plus.__version__` is the version.
+`costal info` / `CosTaL.default_matmul()`, `l2_bytes_per_thread()`, `tile_budget_bytes()`
+report the build and the cache sizes the kernel tiles for. `CosTaL.__version__` is the version.
 
 ---
 
 ## 7. Command line
 
 ```
-costal-plus cluster INPUT [-o OUTPUT] [--platform {none,mass,flow,spectral flow,scrnaseq}]
+costal cluster INPUT [-o OUTPUT] [--platform {none,mass,flow,spectral flow,scrnaseq}]
                     [--preset {paper,normalize_total}] [--columns A,B,...] [--exclude A,B,...]
                     [-k K] [--select {cosine,tanimoto}] [--weight {tanimoto,cosine,jaccard}]
                     [--resolution R] [--leiden {paper,fast}] [--seed N]
                     [--multiscale] [--phi-max F] [--seeds N]
                     [--compat paper] [--threads N] [--json]
-costal-plus info
+costal info
 ```
 
 - **Input**: `.csv`, `.tsv`, `.txt` (optionally `.gz`; header row, non-numeric columns dropped),
@@ -333,7 +339,7 @@ costal-plus info
   results across machines, operating systems, thread counts and matrix-multiplication backends.
 - **Leiden is randomized.** Pass `seed=` for repeatable clusters. The same seed reproduces the same
   partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
-- **Parity with the original.** On the paper's datasets, CosTaL+ and the original code give identical
+- **Parity with the original.** On the paper's datasets, CosTaL 1.0 and the original code give identical
   neighbor sets and, at the same Leiden seed, identical partitions on most datasets (docs/03 §10).
   Where partitions differ, the graphs differ only in the last bits of the edge weights (float32 vs
   float64 arithmetic), which Leiden can amplify; accuracy is the same.
@@ -349,7 +355,7 @@ costal-plus info
 End to end (kNN + weights + graph + Leiden at the paper's settings) on one Apple M1 Pro, against the
 original code's own kNN path (docs/03 §10.4):
 
-| Dataset | Cells × features | Original | CosTaL+ | CosTaL+ `leiden="fast"` | Graph only | Same neighbors | Accuracy (original / CosTaL+ / fast) |
+| Dataset | Cells × features | Original | CosTaL 1.0 | CosTaL 1.0 `leiden="fast"` | Graph only | Same neighbors | Accuracy (original / CosTaL 1.0 / fast) |
 |---|---|---:|---:|---:|---:|---:|---|
 | E-MTAB-3321 | 124 × 2,000 | 0.06 s | 0.02 s (3.1×) | 0.004 s (17×) | 13× | 100% | ARI 0.687 / 0.687 / 0.687 |
 | GSE81861 | 561 × 2,000 | 1.0 s | 0.11 s (9.1×) | 0.02 s (41×) | 40× | 100% | ARI 1.000 / 1.000 / 1.000 |
@@ -361,19 +367,19 @@ original code's own kNN path (docs/03 §10.4):
 | Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% | ARI 0.756 / 0.756 / 0.758 |
 | Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% | activated F1 0.020 / 0.019 / 0.038 |
 
-- "Graph only" is the kNN + weights + graph, where CosTaL+'s work is; with the paper's Leiden
-  settings, leidenalg itself is 80–97% of CosTaL+'s time, which is why the end-to-end gain on the
+- "Graph only" is the kNN + weights + graph, where CosTaL 1.0's work is; with the paper's Leiden
+  settings, leidenalg itself is 80–97% of CosTaL 1.0's time, which is why the end-to-end gain on the
   large cytometry sets is 2.4–4.3×. `leiden="fast"` removes that bottleneck.
 - At the same Leiden seed the partitions are identical on six datasets; on Nilsson_rare, Levine_13
   and Mosmann_rare the graphs have the same edges but the original's edge weights carry float32
-  rounding (≤ 6×10⁻⁷; CosTaL+ computes them in float64), and Leiden follows a different path from
+  rounding (≤ 6×10⁻⁷; CosTaL 1.0 computes them in float64), and Leiden follows a different path from
   there. Accuracy is the same within Leiden's run-to-run noise.
 - The original's own path here is its brute-force kNN (what it runs on macOS); the paper's Linux runs
   used the `p_knng` binary, whose timings are in docs/02.
 
 ### Memory
 
-CosTaL+ needs about **twice the input matrix** for the kNN — the input as float32 plus one working
+CosTaL 1.0 needs about **twice the input matrix** for the kNN — the input as float32 plus one working
 copy — plus 12 bytes per neighbor for the result; graph construction and Leiden add a few hundred
 bytes per edge (about k edges per cell), most of it inside igraph. Measured peak memory above the
 loaded input (Apple M1 Pro):
@@ -396,36 +402,47 @@ To keep memory low:
 
 ---
 
-## 11. Migrating from CosTaL 0.0.2
+## 11. Upgrading from CosTaL 0.0.2
 
-| CosTaL 0.0.2 | CosTaL+ |
+```bash
+pip install --upgrade CosTaL
+```
+
+**0.0.2 code runs unchanged.** CosTaL 1.0 keeps the 0.0.2 names, arguments and import paths:
+
+| 0.0.2 code | In 1.0 |
 |---|---|
-| `from CosTaL import clustering` | `import costal_plus` |
-| `CosTaL.pp(X, platform="mass")` | `costal_plus.preprocess(X, "mass")` (`"flow"`, `"spectral flow"`, `"scrnaseq"` likewise) |
-| `CosTaL.find_communities(X, pp_method="mass", nbr_num=10, resolution=0.8, seed=s)` | `costal_plus.find_communities(costal_plus.preprocess(X, "mass"), k=10, resolution=0.8, seed=s)` |
-| `method="tani"` / `"cosine"` / `"jaccard"` | `weight="tanimoto"` / `"cosine"` / `"jaccard"` |
-| `n_threads=` | `n_threads=` |
-| `partition_type=la.RBConfigurationVertexPartition` | the default; for other partition types call `build_graph` and leidenalg yourself (section 4) |
-| `local=True` | not provided (see below); for rare populations use `find_communities_multiscale` |
-| `keep_temp_files`, `temp_name`, `verbose` | not needed: no temporary files, no external binary |
-| `CosTaL.clustering(X, ...)` | `costal_plus.find_communities(...)` |
-| `CosTaL.return_scores(ytrue, ypred)` and other `descriptions` helpers | not included; use `sklearn.metrics` (ARI, AMI, FMI, V-measure) |
-| returns a Python list | returns a numpy int64 array |
+| `CosTaL.find_communities(X, pp_method="mass", method="tani", nbr_num=10, resolution=0.8, seed=s)` | works as before and returns a list; 0.0.2's arguments select the 0.0.2 interface |
+| `CosTaL.find_communities(X, "mass")` | works (0.0.2's positional `pp_method`) |
+| `CosTaL.clustering(X, ...)`, `CosTaL.pp(X, platform)`, `CosTaL.normalize_arcsinh(X, base)` | work as before |
+| `from CosTaL.clustering import find_communities, pp` | works |
+| `CosTaL.return_scores`, `get_f1_matrix`, `get_rare_f1`, `return_Ff1_score`, `return_Hf1_score`, `calculate_sparsity`, `from CosTaL.descriptions import …` | work as before; `return_scores` matches 0.0.2 to 1e-12 |
+| `partition_type=` another leidenalg partition | works |
+| `n_threads=`, `seed=`, `resolution=` | work |
+| `verbose=`, `keep_temp_files=`, `temp_name=` | accepted, and have nothing to do (no temporary files) |
+| `local=True` | raises `NotImplementedError` (see below); for rare populations use `find_communities_multiscale` |
+| the 0.0.2 internals `save_as_ijv`, `build_tani_graph`, `bc`, `map_tani`, `build_graph(rows, columns, weights, shape)`, … | removed; `build_graph` is now the 1.0 function of section 4 |
 
-What changes, and why:
+The 1.0 interface sits next to it: `CosTaL.preprocess(X, platform)` then `CosTaL.find_communities(X)`
+(which then returns a numpy array), plus `knn`, `reweight`, `truncate`, `build_graph`,
+`find_communities_multiscale` and the `costal` command line. Mixing the two in one call — 0.0.2's
+`nbr_num` with 1.0's `leiden`, say — is an error rather than a guess.
 
-- **No binary, every platform.** The original ran the `p_knng` executable on Linux and fell back to a
-  slower brute-force path elsewhere; CosTaL+ is one compiled library on all platforms.
-- **Exact kNN on all data.** The `p_knng` binary assumes non-negative input (its own documentation
-  says so); arcsinh-transformed cytometry has negative values (27% of Levine_32's entries, 42% of
-  Samusik_01's), where it returned slightly wrong neighbors for about 17% of Levine_32's cells. CosTaL+ computes
-  the exact cosine kNN the paper describes. On non-negative data (all scRNA-seq) the two agree
-  exactly.
-- **macOS / Windows results now match Linux.** The original's fallback path kept a cell in its own
-  neighbor list when it had an exact duplicate and ran Leiden for 100 iterations instead of 10;
-  CosTaL+ follows the published (Linux) path everywhere.
-- **Dropped cells are reported.** The original scRNA-seq `pp()` returned only the matrix, so labels
-  silently shifted if `filter_cells` removed a cell; `preprocess` warns and returns the kept indices.
+What changes in the results, and why:
+
+- **No binary, every platform.** 0.0.2 ran the `p_knng` executable on Linux and fell back to a slower
+  brute-force path elsewhere; 1.0 is one compiled library on all platforms.
+- **Exact kNN on all data.** The `p_knng` binary assumes non-negative input (its own documentation says
+  so); arcsinh-transformed cytometry has negative values (27% of Levine_32's entries, 42% of
+  Samusik_01's), where it returned slightly wrong neighbors for about 17% of Levine_32's cells. 1.0
+  computes the exact cosine kNN the paper describes. On non-negative data (all scRNA-seq) the two
+  agree exactly.
+- **macOS / Windows results now match Linux.** 0.0.2's fallback path kept a cell in its own neighbor
+  list when it had an exact duplicate and ran Leiden for 100 iterations instead of 10; 1.0 follows the
+  published (Linux) path everywhere.
+- **Dropped cells are reported.** 0.0.2's scRNA-seq `pp()` returned only the matrix, so labels
+  silently shifted if `filter_cells` removed a cell; 1.0 warns, and `preprocess(..., return_cells=True)`
+  returns the kept indices.
 - **`local=True`** passed similarities where distances were expected, inverting UMAP's local scaling.
   Fixed and evaluated, it gave no consistent improvement (docs/05 §2.2), so it was not carried over.
 
@@ -435,11 +452,10 @@ What changes, and why:
 
 | Symptom | Cause and fix |
 |---|---|
-| `ImportError: find_communities needs igraph` | `pip install "costal-plus[leiden]"` |
-| `ImportError: platform='scrnaseq' needs scanpy` | `pip install "costal-plus[scrnaseq]"` |
-| `ValueError: ... seurat_v3 ... skmisc` or a numpy dtype-size error from `skmisc` | scikit-misc missing or built for another numpy; on Python 3.9 use `pip install "numpy<2" scikit-misc` |
+| `ImportError: ... needs igraph / leidenalg / scanpy` | they install with CosTaL; reinstall it (`pip install --force-reinstall CosTaL`), or on Windows on Arm use `leiden="fast"` |
+| `ValueError: ... seurat_v3 ... skmisc` or a numpy dtype-size error from `skmisc` | scikit-misc built for another numpy (e.g. numpy upgraded to 2.x by hand on Python 3.9): `pip install "numpy<2"` |
 | `TypeError: sparse input needs the sparse backend` | `knn` takes dense matrices; for scRNA-seq call `preprocess` first (it returns a dense matrix) |
-| `ValueError: row ... contains NaN or inf` | clean or impute the input; CosTaL+ never guesses |
+| `ValueError: row ... contains NaN or inf` | clean or impute the input; CosTaL 1.0 never guesses |
 | `CostalWarning: row norms are nearly constant` | the rows are unit-normalized, so Tanimoto weights add nothing; cluster the untransformed data |
 | `CostalWarning: columns are centered` | PCA / z-scored input; Tanimoto weights change meaning; cluster the preprocessed, uncentered data |
 | `CostalWarning: filter_cells ... dropped N cells` | expected for low-quality cells; use `return_cells=True` to align labels |

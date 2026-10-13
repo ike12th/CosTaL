@@ -1,5 +1,8 @@
 # Resolution limit and stopping criterion (v0, 2026-09-20)
 
+> **Name.** These design notes were written while the rewrite was called *CosTaL+*; it is released as
+> **CosTaL 1.0**, the next version of CosTaL (0.0.2 → 1.0). "CosTaL+" below means CosTaL 1.0.
+
 > This document is the **methodology track**, not the acceleration track. The goal is "a better CosTaL", not "a faster CosTaL".
 > The two tracks' deliverables must be kept separate: the default path continues to reproduce the published CosTaL (versioning policy (b),
 > docs/04 §6.5); everything in this document is an opt-in mode with its own evaluation.

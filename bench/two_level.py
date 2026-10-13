@@ -35,7 +35,7 @@ from small_datasets import leiden  # noqa: E402
 from stage_a import environment  # noqa: E402
 from stage_c2 import build  # noqa: E402
 
-import costal_plus as cp  # noqa: E402
+import CosTaL as cp  # noqa: E402
 
 OUT = HERE / "out" / "two_level.json"
 K = 10

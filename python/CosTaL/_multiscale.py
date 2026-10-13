@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _costal_plus as _ext
+from . import _costal as _ext
 from ._api import _igraph, knn, reweight
 
 __all__ = ["RESOLUTIONS", "find_communities_multiscale"]
@@ -162,7 +162,7 @@ def find_communities_multiscale(
     try:
         import igraph  # noqa: F401  (fail before the expensive kNN, not after)
     except ImportError as exc:  # pragma: no cover - depends on the environment
-        raise ImportError("find_communities_multiscale needs igraph: pip install costal-plus[leiden]") from exc
+        raise ImportError("find_communities_multiscale needs igraph: pip install igraph") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     rows, cols, w = _ext._fuzzy_union(g.idx, reweight(g, weight))

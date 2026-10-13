@@ -1,14 +1,12 @@
-"""costal_plus.legacy: the CosTaL 0.0.2 API on CosTaL+, and the CosTaL compatibility package."""
+"""CosTaL 0.0.2 code keeps working on 1.0: the same names, arguments, import paths and list results."""
 
 import importlib.util
-import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-import costal_plus as cp
-from costal_plus import legacy
+import CosTaL
 
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINAL_DESCRIPTIONS = ROOT / "bench" / "reference" / "CosTaL-0.0.2.4" / "CosTaL" / "descriptions.py"
@@ -20,33 +18,56 @@ def cells(seed=0, n=300, d=6):
     return np.abs(centers[rng.integers(0, 3, n)] + rng.normal(0, 30, (n, d)))
 
 
-def test_find_communities_is_the_published_method():
+def test_find_communities_002_call_is_the_published_method():
     pytest.importorskip("leidenalg")
     x = cells()
-    got = legacy.find_communities(x, pp_method="mass", seed=0)
+    got = CosTaL.find_communities(x, pp_method="mass", seed=0)
     assert isinstance(got, list) and len(got) == len(x)
-    assert got == cp.find_communities(cp.preprocess(x, "mass"), seed=0).tolist()
-    assert legacy.clustering(x, pp_method="mass", seed=0) == got
-    cosine = legacy.find_communities(x, pp_method="mass", method="cosine", seed=0)
-    assert cosine == cp.find_communities(cp.preprocess(x, "mass"), weight="cosine", seed=0).tolist()
+    assert got == CosTaL.find_communities(CosTaL.preprocess(x, "mass"), seed=0).tolist()
+    assert CosTaL.find_communities(x, "mass", seed=0) == got  # 0.0.2's positional pp_method
+    assert CosTaL.clustering(x, pp_method="mass", seed=0) == got
+    cosine = CosTaL.find_communities(x, pp_method="mass", method="cosine", nbr_num=10, seed=0)
+    assert cosine == CosTaL.find_communities(CosTaL.preprocess(x, "mass"), weight="cosine", seed=0).tolist()
+    accepted = CosTaL.find_communities(x, pp_method="mass", seed=0, verbose=True, keep_temp_files=True, temp_name="t")
+    assert accepted == got  # 0.0.2 housekeeping arguments are accepted and have nothing to do
+
+
+def test_new_call_returns_an_array():
+    pytest.importorskip("leidenalg")
+    labels = CosTaL.find_communities(CosTaL.preprocess(cells(), "mass"), seed=0)
+    assert isinstance(labels, np.ndarray) and labels.dtype == np.int64
+
+
+def test_mixing_interfaces_and_typos_are_errors():
+    x = cells(n=50)
+    with pytest.raises(ValueError, match="can't be combined"):
+        CosTaL.find_communities(x, nbr_num=10, leiden="fast")
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        CosTaL.find_communities(x, resolutoin=0.5)
 
 
 def test_other_partition_types_and_unsupported_options():
     la = pytest.importorskip("leidenalg")
     x = cells(seed=1)
-    labels = legacy.find_communities(x, pp_method="mass", partition_type=la.ModularityVertexPartition, seed=0)
+    labels = CosTaL.find_communities(x, pp_method="mass", partition_type=la.ModularityVertexPartition, seed=0)
     assert len(labels) == len(x) and max(labels) >= 1
     with pytest.raises(NotImplementedError, match="local=True"):
-        legacy.find_communities(x, local=True)
+        CosTaL.find_communities(x, local=True)
     with pytest.raises(RuntimeError, match="Method not supported"):
-        legacy.find_communities(x, method="euclid")
+        CosTaL.find_communities(x, method="euclid")
 
 
-def test_pp_matches_the_original_conventions():
+def test_import_paths_of_002():
+    from CosTaL.clustering import clustering, find_communities, normalize_arcsinh, pp
+    from CosTaL.descriptions import return_scores
+
+    assert find_communities is CosTaL.find_communities and clustering is CosTaL.clustering
+    assert callable(CosTaL.clustering)  # as in 0.0.2, the function shadows the submodule's name
+    assert return_scores is CosTaL.return_scores
     x = cells()
-    np.testing.assert_array_equal(legacy.pp(x, "mass"), cp.preprocess(x, "mass"))
-    assert legacy.pp(x) is x  # no platform: values untouched
-    np.testing.assert_allclose(legacy.normalize_arcsinh(x, 150), np.arcsinh(x / 150))
+    np.testing.assert_array_equal(pp(x, "mass"), CosTaL.preprocess(x, "mass"))
+    assert pp(x) is x  # no platform: values untouched
+    np.testing.assert_allclose(normalize_arcsinh(x, 150), np.arcsinh(x / 150))
 
 
 def original_descriptions():
@@ -54,40 +75,23 @@ def original_descriptions():
     pytest.importorskip("sklearn")
     pytest.importorskip("scipy")
     if not ORIGINAL_DESCRIPTIONS.exists():  # pragma: no cover
-        pytest.skip("the original CosTaL source is not in bench/reference")
-    spec = importlib.util.spec_from_file_location("original_descriptions", ORIGINAL_DESCRIPTIONS)
+        pytest.skip("the 0.0.2 source is not in bench/reference")
+    spec = importlib.util.spec_from_file_location("costal_002_descriptions", ORIGINAL_DESCRIPTIONS)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
-def test_scores_match_the_original(seed):
+def test_scores_match_002(seed):
     orig = original_descriptions()
     rng = np.random.default_rng(seed)
     ytrue = rng.integers(0, 6, 400).astype(float)
     ytrue[rng.random(400) < 0.1] = np.nan  # unlabeled cells
     ypred = np.where(rng.random(400) < 0.7, np.nan_to_num(ytrue, nan=0).astype(int), rng.integers(0, 9, 400))
-    ours, theirs = legacy.return_scores(ytrue, ypred), orig.return_scores(ytrue, ypred)
+    ours, theirs = CosTaL.return_scores(ytrue, ypred), orig.return_scores(ytrue, ypred)
     assert len(ours) == len(theirs) == 12
     np.testing.assert_allclose(np.array(ours, dtype=float), np.array(theirs, dtype=float), rtol=1e-12)
-    assert legacy.get_rare_f1(ytrue[:50] > 3, ypred[:50]) == pytest.approx(orig.get_rare_f1(ytrue[:50] > 3, ypred[:50]))
+    assert CosTaL.get_rare_f1(ytrue[:50] > 3, ypred[:50]) == pytest.approx(orig.get_rare_f1(ytrue[:50] > 3, ypred[:50]))
     x = rng.normal(size=(20, 5)) * (rng.random((20, 5)) < 0.5)
-    assert legacy.calculate_sparsity(x) == orig.calculate_sparsity(x)
-
-
-def test_compatibility_package(monkeypatch):
-    pytest.importorskip("leidenalg")
-    monkeypatch.syspath_prepend(str(ROOT / "packaging" / "costal-compat"))
-    for name in [m for m in sys.modules if m == "CosTaL" or m.startswith("CosTaL.")]:
-        monkeypatch.delitem(sys.modules, name)
-    with pytest.warns(FutureWarning, match="CosTaL\\+"):
-        import CosTaL
-    from CosTaL.clustering import find_communities
-    from CosTaL.descriptions import return_scores
-
-    assert CosTaL.find_communities is find_communities is legacy.find_communities
-    assert CosTaL.return_scores is return_scores is legacy.return_scores
-    assert callable(CosTaL.clustering)  # as in the original, the function shadows the module name
-    x = cells(seed=3)
-    assert CosTaL.clustering(x, pp_method="mass", seed=0) == legacy.clustering(x, pp_method="mass", seed=0)
+    assert CosTaL.calculate_sparsity(x) == orig.calculate_sparsity(x)
