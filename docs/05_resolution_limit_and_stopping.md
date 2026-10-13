@@ -283,9 +283,29 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 >   Nilsson_rare — and shows why a stopping rule matters (§2.1 ①): the size floor stops nothing on
 >   cytometry-sized data. The conductance rule keeps the large populations intact while getting the
 >   rare ones.
-> - **Status: promising, not shipped.** Before it becomes an opt-in mode: datasets with known rare
->   populations (Samusik, Nilsson_rare — not available offline), and a way for users to pick φ_max (or
->   to see which carved clusters depend on it).
+> - **The paper's rare-population benchmarks (2026-10-13; all held out, φ_max still 0.04).**
+>   Samusik_01, Nilsson_rare and Mosmann_rare from HDCytoData (docs/03 §10.1; Table 2 reproduced
+>   exactly), leidenalg ensembles, against the reconstructed two-level option of the supplement — the
+>   method the paper itself used on Nilsson_rare and Mosmann_rare:
+>
+>   | Data | Paper setting (0.8) | Best single resolution | Two levels, ≥ 500 | Conductance, φ_max = 0.04 |
+>   |---|---|---|---|---|
+>   | Nilsson_rare, HSC F1 (358 of 44,140) | 0.169 (18 clusters) | 0.479 (3.2; 50) | 0.500 (122) | **0.531 (53)**; 0.598 at φ_max 0.02 (30) |
+>   | Mosmann_rare, activated F1 (109 of 396,460) | 0.175 (16) | 0.560 (1.6; 26) | 0.635 (131) | **0.653 (34)**, the same for φ_max 0.02–0.05 |
+>   | Samusik_01, ARI · rare-5 · large-5 · mean F1 | 0.833 · 0.241 · 0.898 · 0.608 | best ARI (0.4): 0.902 · 0.170 · 0.918 · 0.567 | 0.243 · 0.523 · 0.395 · 0.514 (104) | **0.860 · 0.429 · 0.908 · 0.712** (33); at 0.03: 0.905 · 0.429 · 0.919 · 0.714 |
+>
+>   On both one-population benchmarks the conductance rule finds the rare population better than any
+>   single resolution and better than the paper's two-level option, with a quarter of its clusters.
+>   On Samusik_01 (24 populations) it lifts the 5 rarest above the single-resolution oracle (0.43 vs
+>   0.37) and matches the oracle's mean F1, at −0.04 ARI (φ_max 0.03 gives the same F1 with ARI above
+>   every single resolution).
+> - **Tally over seven datasets, φ_max = 0.04 fixed in advance:** better than the best single
+>   resolution on the rare populations on six (Levine_32, Levine_13, GSE84133, Samusik_01,
+>   Nilsson_rare, Mosmann_rare), no gain on GSE74672; ARI within 0.05 of the best single resolution
+>   except Levine_13 (−0.06).
+> - **Decision (2026-10-13, under delegated authority): ship it as an opt-in mode**, the condition set
+>   above (benchmarks with known rare populations) now being met. It does not touch the default path
+>   (versioning policy (b)): `compat="paper"` refuses it.
 
 ### 2.4 Ranking
 
@@ -293,7 +313,7 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 |---|---|---|---|
 | **0** | The diagnostic in §1.1 | ~20 lines | First prove the disease exists |
 | **1** | ~~Evaluate `local=True` (first fix the issue in §2.2: semantics confirmed inverted)~~ **Done: no consistent gain (§2.2)** | Almost zero | Already implemented, non-greedy, `O(N·k)`, no added knob |
-| **2** | Multi-resolution stability — **seed-stability rule: Levine_32 only; conductance rule: also GSE84133, partly Levine_13 (§2.3)** | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
+| **2** | Multi-resolution stability — **seed-stability rule: Levine_32 only; conductance rule: better on rare populations in 6 of 7 datasets, shipped opt-in (§2.3)** | Medium | Non-greedy, no stopping-criterion problem, favored by the architecture |
 | **3** | Recursive splitting **+ significance-based stopping criterion** | High | Only worth it if 1 and 2 both fall short, and the contribution must be in the criterion |
 
 ---
