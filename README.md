@@ -34,9 +34,11 @@ the paper, or igraph's native implementation with `leiden="fast"`. `preprocess()
   Tanimoto selection recovers rare populations better; on the other five it is a tie. The `normalize_total` scRNA-seq preset is never
   worse and less resolution-sensitive (opt-in, docs/04 §6.7).
 - **Resolution limit (methodology track, docs/05).** Rare populations are systematically lost at any
-  single resolution. The fixed `local=True` doesn't help; a stability-based multi-resolution selection
-  reaches the per-population optimum on Levine_32 but does not transfer to the other datasets yet.
-  Neither is shipped.
+  single resolution. `find_communities_multiscale()` (opt-in) runs Leiden over a range of
+  resolutions on one exact kNN graph and keeps every finer cluster that leaks at most 4% of its edge
+  weight into its parent: with that threshold fixed in advance, rare populations come out better than
+  at any single resolution on six of seven datasets, including the paper's Nilsson_rare and
+  Mosmann_rare, where it also beats the supplement's two-level option (docs/05 §2.3).
 
 ```python
 import costal_plus
@@ -44,6 +46,7 @@ import costal_plus
 X = costal_plus.preprocess(raw, "mass")                  # the original pp(): "mass", "flow", "spectral flow", "scrnaseq"
 labels = costal_plus.find_communities(X, k=10)          # the published CosTaL, end to end
 labels = costal_plus.find_communities(X, leiden="fast")  # igraph's native Leiden, ~38x faster clustering
+labels = costal_plus.find_communities_multiscale(X)     # opt-in: keeps rare populations (docs/05 §2.3)
 
 # Or step by step, handing the graph to Leiden yourself:
 import igraph, leidenalg as la

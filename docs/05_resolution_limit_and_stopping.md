@@ -306,6 +306,12 @@ Moreover, these Leiden runs are independent of each other and share the same rea
 > - **Decision (2026-10-13, under delegated authority): ship it as an opt-in mode**, the condition set
 >   above (benchmarks with known rare populations) now being met. It does not touch the default path
 >   (versioning policy (b)): `compat="paper"` refuses it.
+> - **Shipped as `costal_plus.find_communities_multiscale(X, phi_max=0.04, ...)`** (igraph's Leiden by
+>   default, `leiden="paper"` for leidenalg). Its partitions are identical to `bench/multiscale.py`'s
+>   (checked on GSE84133 and Levine_32). With igraph the held-out results hold: Nilsson_rare HSC F1
+>   0.579 vs 0.513 for igraph's best single resolution, Mosmann_rare 0.632 vs 0.492, Samusik_01
+>   rare-5 0.379 vs 0.225 at the best-ARI resolution (`bench/out/multiscale_igraph.json`). 110 s for
+>   161k cells on the M1 Pro.
 
 ### 2.4 Ranking
 

@@ -15,6 +15,7 @@ or step by step::
 """
 
 from ._api import CostalWarning, KnnGraph, build_graph, find_communities, knn, reweight, truncate
+from ._multiscale import find_communities_multiscale
 from ._preprocess import preprocess
 from ._costal_plus import (
     __version__,
@@ -34,6 +35,7 @@ __all__ = [
     "core_version",
     "default_matmul",
     "find_communities",
+    "find_communities_multiscale",
     "hello",
     "knn",
     "l2_bytes_per_thread",
