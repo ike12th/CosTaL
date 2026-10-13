@@ -26,6 +26,8 @@ bench = ["scipy", "igraph", "leidenalg", "hnswlib", "scikit-learn", "pandas"]
 leiden = ["igraph", "leidenalg"]
 # preprocess(platform="scrnaseq"): scanpy, and scikit-misc for the seurat_v3 HVG selection
 scrnaseq = ["scanpy", "scikit-misc"]
+# costal-plus cluster: CSV/TSV, FCS and .h5ad readers
+io = ["pandas", "fcsparser", "anndata"]
 dev = ["pytest", "maturin>=1.7", "scipy"]
 
 [project.urls]

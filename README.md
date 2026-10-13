@@ -48,6 +48,10 @@ labels = costal_plus.find_communities(X, k=10)          # the published CosTaL, 
 labels = costal_plus.find_communities(X, leiden="fast")  # igraph's native Leiden, ~38x faster clustering
 labels = costal_plus.find_communities_multiscale(X)     # opt-in: keeps rare populations (docs/05 §2.3)
 
+# From the command line, no Python needed (pip install costal-plus[io,leiden]):
+#   costal-plus cluster cells.fcs --platform mass --exclude Time,label -o labels.csv
+#   costal-plus cluster counts.h5ad --platform scrnaseq --multiscale
+
 # Or step by step, handing the graph to Leiden yourself:
 import igraph, leidenalg as la
 rows, cols, w = costal_plus.build_graph(X, k=10)        # exact cosine kNN → Tanimoto → fuzzy union

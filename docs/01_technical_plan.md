@@ -104,7 +104,9 @@ Pearson r=0.780, and the rankings disagree. Magnitude really is doing work. Deta
 ## 3. Deliverables
 
 1. **Python wheel** (maturin): usable right after `pip install`, for callers such as `nas-manager`;
-2. **Standalone CLI**: runs without writing any Python;
+2. **Standalone CLI**: runs without writing any Python; **done (2026-10-13)**: `costal-plus cluster` reads
+   CSV/TSV, FCS, `.npy` and `.h5ad`, applies the original `pp()` and writes one label per cell
+   (167,044-cell FCS end to end in 10 s with `--leiden fast`);
 3. **C ABI**: can be embedded in other hosts in the future.
 
 The wheels must cover `macos-arm64` and `linux-x86_64`; in practice CI builds a wider set,
