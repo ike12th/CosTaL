@@ -1,0 +1,312 @@
+{
+  "sweep": {
+    "environment": {
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "python": "3.11.17",
+      "numpy": "1.26.4",
+      "costal_plus": "0.1.0",
+      "threads": 2,
+      "default_matmul": "gemm",
+      "l2_bytes_per_thread": null,
+      "tile_budget_bytes": 131072,
+      "veclib_maximum_threads": null,
+      "build": "cpython-311-x86_64-linux-gnu"
+    },
+    "n": 50000,
+    "k": 10,
+    "grid": [
+      {
+        "matmul": "gemm",
+        "row_block": 16,
+        "col_block": 256,
+        "tile_kb": 16.0,
+        "seconds": 3.3625411999999812
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 16,
+        "col_block": 1024,
+        "tile_kb": 64.0,
+        "seconds": 3.4675432260000036
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 16,
+        "col_block": 4096,
+        "tile_kb": 256.0,
+        "seconds": 3.518619598000015
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 32,
+        "col_block": 256,
+        "tile_kb": 32.0,
+        "seconds": 2.86762015299999
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 32,
+        "col_block": 1024,
+        "tile_kb": 128.0,
+        "seconds": 2.9685801800000036
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 32,
+        "col_block": 4096,
+        "tile_kb": 512.0,
+        "seconds": 2.9193748090000042
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 64,
+        "col_block": 256,
+        "tile_kb": 64.0,
+        "seconds": 2.561728990000006
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 64,
+        "col_block": 1024,
+        "tile_kb": 256.0,
+        "seconds": 2.622211232000012
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 64,
+        "col_block": 4096,
+        "tile_kb": 1024.0,
+        "seconds": 2.647882261999996
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 128,
+        "col_block": 256,
+        "tile_kb": 128.0,
+        "seconds": 2.4849762820000194
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 128,
+        "col_block": 1024,
+        "tile_kb": 512.0,
+        "seconds": 2.4830185579999977
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 128,
+        "col_block": 4096,
+        "tile_kb": 2048.0,
+        "seconds": 2.5155250599999874
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 256,
+        "col_block": 256,
+        "tile_kb": 256.0,
+        "seconds": 2.413913874000002
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 256,
+        "col_block": 1024,
+        "tile_kb": 1024.0,
+        "seconds": 2.4421398409999995
+      },
+      {
+        "matmul": "gemm",
+        "row_block": 256,
+        "col_block": 4096,
+        "tile_kb": 4096.0,
+        "seconds": 2.4638157420000084
+      }
+    ],
+    "default": {
+      "seconds": 2.901949490999982,
+      "fallback_rows": 0,
+      "row_block": 32,
+      "col_block": 1024,
+      "matmul": "gemm",
+      "margin": 10
+    }
+  },
+  "speed": {
+    "environment": {
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "python": "3.11.17",
+      "numpy": "1.26.4",
+      "costal_plus": "0.1.0",
+      "threads": 2,
+      "default_matmul": "gemm",
+      "l2_bytes_per_thread": null,
+      "tile_budget_bytes": 131072,
+      "veclib_maximum_threads": null,
+      "build": "cpython-311-x86_64-linux-gnu"
+    },
+    "k": 10,
+    "rows": [
+      {
+        "n": 10000,
+        "knn_s": 0.15434571500000516,
+        "tanimoto_s": 0.0002926909999985128,
+        "graph_s": 0.002256063999993785,
+        "total_s": 0.15689446999999745,
+        "edges": 78521,
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "docs02": {
+          "blas_blocked": 2.15,
+          "phenograph_bruteforce": 22.62
+        },
+        "bruteforce_s": 3.7221594760000016,
+        "bitwise_equal_to_bruteforce": true
+      },
+      {
+        "n": 20000,
+        "knn_s": 0.5324164330000087,
+        "tanimoto_s": 0.00052573499999653,
+        "graph_s": 0.004620568000007097,
+        "total_s": 0.5375627360000124,
+        "edges": 158455,
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "docs02": null,
+        "bruteforce_s": 15.481415947000016,
+        "bitwise_equal_to_bruteforce": true
+      },
+      {
+        "n": 50000,
+        "knn_s": 2.9136057130000097,
+        "tanimoto_s": 0.0012917029999925944,
+        "graph_s": 0.012522942000032344,
+        "total_s": 2.9274203580000346,
+        "edges": 400777,
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "docs02": {
+          "blas_blocked": 40.67,
+          "phenograph_bruteforce": 74.97
+        }
+      },
+      {
+        "n": 100000,
+        "knn_s": 11.001229870000031,
+        "tanimoto_s": 0.003192362999982379,
+        "graph_s": 0.025081443999965813,
+        "total_s": 11.02950367699998,
+        "edges": 802681,
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "docs02": {
+          "matmul_only_lower_bound": 26.6,
+          "matmul_plus_topk": 225.32
+        }
+      },
+      {
+        "n": 265627,
+        "knn_s": 73.66028463100002,
+        "tanimoto_s": 0.008920864000003803,
+        "graph_s": 0.07288184500004036,
+        "total_s": 73.74208734000007,
+        "edges": 2119065,
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "docs02": {
+          "blas_blocked": 1098.69
+        }
+      }
+    ]
+  },
+  "parity": {
+    "environment": {
+      "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+      "machine": "x86_64",
+      "python": "3.11.17",
+      "numpy": "1.26.4",
+      "costal_plus": "0.1.0",
+      "threads": 2,
+      "default_matmul": "gemm",
+      "l2_bytes_per_thread": null,
+      "tile_budget_bytes": 131072,
+      "veclib_maximum_threads": null,
+      "build": "cpython-311-x86_64-linux-gnu"
+    },
+    "n": 50000,
+    "k": 10,
+    "dedup": true,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "rows_in_exact_duplicate_groups": 0,
+    "original_rows_containing_self": 0,
+    "neighbour_rows_identical": 1.0,
+    "rows_differing": 0,
+    "rows_differing_because_original_kept_self": 0,
+    "max_cos_gap_in_differing_rows": 0.0,
+    "tanimoto_max_rel_diff": 6.026233554255721e-08,
+    "edges": {
+      "original": 401424,
+      "ours": 401424
+    },
+    "partition_ari": {
+      "ours_vs_original_same_seed": 1.0,
+      "original_seed_to_seed": 0.83295038997959,
+      "ours_seed_to_seed": 0.83295038997959
+    },
+    "original": {
+      "knn_s": 36.49919329300002,
+      "weights_graph_s": 1.1657781209999598,
+      "leiden_s": 18.03096629339999,
+      "labels": {
+        "ari": {
+          "mean": 0.8041071641750003,
+          "sd": 0.0734200313759919
+        },
+        "nmi": {
+          "mean": 0.8754451820441342,
+          "sd": 0.0260818985105997
+        },
+        "clusters": {
+          "mean": 16.4,
+          "sd": 1.019803902718557
+        }
+      }
+    },
+    "ours": {
+      "knn_weights_graph_s": 3.21405161499996,
+      "stats": {
+        "fallback_rows": 0,
+        "row_block": 32,
+        "col_block": 1024,
+        "matmul": "gemm",
+        "margin": 10
+      },
+      "leiden_s": 16.316594267000006,
+      "labels": {
+        "ari": {
+          "mean": 0.8041071641750003,
+          "sd": 0.0734200313759919
+        },
+        "nmi": {
+          "mean": 0.8754451820441342,
+          "sd": 0.0260818985105997
+        },
+        "clusters": {
+          "mean": 16.4,
+          "sd": 1.019803902718557
+        }
+      }
+    }
+  }
+}

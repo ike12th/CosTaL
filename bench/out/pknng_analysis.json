@@ -1,0 +1,96 @@
+{
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "costal_plus": "0.1.0",
+  "n20000_dedup": {
+    "semantics": {
+      "max_abs_diff_vs_definition": {
+        "cosine": 0.0031718016322029863,
+        "clip_negatives_then_cosine": 0.007656282571311679,
+        "normalize_then_drop_negatives": 0.00665973310631951
+      },
+      "abs_diff_vs_cosine_quantiles": {
+        "50%": 2.2144701903814568e-05,
+        "90%": 0.00021679098006652798,
+        "99%": 0.0005712990125054076,
+        "99.9%": 0.0010877225854130275,
+        "max": 0.0031718016322028753
+      },
+      "fraction_above_cosine": 0.59125,
+      "fraction_below_cosine": 0.226175,
+      "per_feature_fit_max_abs_coef": 0.0010496069120280575,
+      "per_feature_fit_residual_max": 0.0031011756040863828
+    }
+  },
+  "n50000_dedup": {
+    "semantics": {
+      "max_abs_diff_vs_definition": {
+        "cosine": 0.0031244893169147803,
+        "clip_negatives_then_cosine": 0.0062167553894103555,
+        "normalize_then_drop_negatives": 0.005351560841168945
+      },
+      "abs_diff_vs_cosine_quantiles": {
+        "50%": 2.43870678247049e-05,
+        "90%": 0.00021991564469126,
+        "99%": 0.000568750940778526,
+        "99.9%": 0.0010310732966261114,
+        "max": 0.0031244893169147803
+      },
+      "fraction_above_cosine": 0.603954,
+      "fraction_below_cosine": 0.235092,
+      "per_feature_fit_max_abs_coef": 0.000991347925405585,
+      "per_feature_fit_residual_max": 0.0029636387360128533
+    },
+    "impact": {
+      "recall_at_k": {
+        "mean": 0.982418,
+        "min": 0.7,
+        "rows_with_any_difference": 0.17132
+      },
+      "edges": {
+        "pknng": 401607,
+        "exact": 401424
+      },
+      "partition_ari_pknng_vs_exact_same_seed": 0.8856221505947295,
+      "partition_ari_seed_to_seed": {
+        "pknng": 0.8663749400510898,
+        "exact": 0.83295038997959
+      },
+      "labels": {
+        "pknng": {
+          "ari": {
+            "mean": 0.7699815048492407,
+            "sd": 0.019042975423315744
+          },
+          "nmi": {
+            "mean": 0.8620988709039515,
+            "sd": 0.008827792414645184
+          },
+          "clusters": {
+            "mean": 17.2,
+            "sd": 0.39999999999999997
+          }
+        },
+        "exact": {
+          "ari": {
+            "mean": 0.8041071641750003,
+            "sd": 0.0734200313759919
+          },
+          "nmi": {
+            "mean": 0.8754451820441341,
+            "sd": 0.026081898510599298
+          },
+          "clusters": {
+            "mean": 16.4,
+            "sd": 1.019803902718557
+          }
+        }
+      }
+    }
+  }
+}

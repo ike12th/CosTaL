@@ -120,6 +120,9 @@ Because of §1, these three tiers affect only speed, not output.
 > (per-thread L2 4 MB → tile 2 MB) is the fastest setting in the sweep. The tier-1 floor of 128 KB falls within the plateau.
 > Implemented: detection on macOS (`sysctl`) and Linux (`/sys`); **Windows currently just uses the floor value**;
 > `GetLogicalProcessorInformationEx` is still to be added. Tier 3 (first-run self-test) is not done — the plateau is wide enough that it is not needed for now.
+> **Measured on GitHub's x86-64 Linux VMs (docs/03 §8.5): `/sys` detection returned nothing there**, so the
+> 128 KB floor applied and cost ~20% against the best tile. On x86, reading cache sizes via CPUID (leaf 4 on Intel,
+> 0x8000001D on AMD; `core::arch` intrinsics, no dependency) would cover these VMs and Windows at once.
 
 ### 2.4 Alternative: register-level fusion (not assumed for Stage A)
 

@@ -354,3 +354,33 @@ In the upstream file every gated cell appears twice (104,184 pairs); the true ce
 ARI is inflated by about 0.095, far beyond the seed-to-seed variation. A plausible explanation: the cells being scored are exactly the ones that were duplicated,
 so the density of their populations was doubled. **Only CosTaL was measured here**; whether other methods are inflated the same way on this file, and whether the ranking
 would change, was not measured. From now on, CosTaL+ accuracy evaluations always use the deduplicated data (docs/02 addendum).
+
+### 8.5 x86-64 Linux and the original `p_knng` (GitHub Actions, 2026-10-12)
+
+Run on GitHub's x86-64 runners (2 vCPUs, pure-Rust `gemm` backend) by the `bench` and `golden`
+workflows; raw numbers in `bench/out/stage_a.linux-x86_64.json`, `bench/out/golden_pknng.json`
+and `bench/out/pknng_analysis.json`.
+
+**Correctness carries over to x86.** Bit-identical to the f64 brute force at N = 10k and 20k. On
+deduplicated Levine 50k, neighbor sets are 100% identical to the original `bc()`, same-seed Leiden
+partitions are identical (ARI = 1.0 for all 5 seeds), and the scores against the gating labels are
+exactly the M1's (ARI 0.804 ± 0.073) — the graph is identical end to end across the two platforms
+and matmul backends, as docs/06 §1 requires. CI also passes on macOS, Linux and Windows.
+
+| N | Exact kNN (x86, 2 vCPUs, gemm) | M1 Pro (8 cores, Accelerate) |
+|---:|---:|---:|
+| 10,000 | 0.15 s | 0.022 s |
+| 50,000 | 2.91 s | 0.31 s |
+| 100,000 | 11.0 s | 1.02 s |
+| 265,627 | 73.7 s | 6.47 s |
+
+On the same x86 runner, the original `bc()` graph build at deduplicated 50k takes 37.7 s
+(phenograph 36.5 s) versus 3.2 s for CosTaL+.
+
+**Cache detection fails on these VMs.** `l2_bytes_per_thread()` returned `None`, so tiles fell back
+to the 128 KB floor (32 rows); the sweep's best tile (256 × 256, 256 KB) is ~20% faster
+(2.41 s vs 2.90 s at 50k). Detection via CPUID would cover both these VMs and Windows (docs/06 §2.3).
+
+**The original `p_knng` is not exact on Levine** (mean recall@10 98.2%, 17% of rows differ), but the
+effect on clustering is within Leiden's seed-to-seed noise. Details and the pending decision on
+what `compat="paper"` pins: docs/04 §4 "Results".

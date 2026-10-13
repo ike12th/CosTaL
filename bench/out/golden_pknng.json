@@ -1,0 +1,124 @@
+{
+  "environment": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.17",
+    "costal_plus": "0.1.0",
+    "cpus": 2
+  },
+  "k": 10,
+  "runs": [
+    {
+      "n": 20000,
+      "dedup": true,
+      "clu_meta": [
+        20000,
+        20000,
+        200000
+      ],
+      "pknng_s": 21.88396278800002,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 178,
+        "min_index": 2,
+        "max_index": 20000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.85715,
+        "rows_containing_self": 0,
+        "min_index": 1,
+        "max_index": 19999
+      },
+      "inferred_base": 1,
+      "rows_differing": 2857,
+      "max_cos_gap_in_differing_rows": 0.0018919328310976757,
+      "value_max_abs_diff_vs_costal_plus_cos": 0.0028332651937058584,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    },
+    {
+      "n": 20000,
+      "dedup": false,
+      "clu_meta": [
+        20000,
+        20000,
+        200000
+      ],
+      "pknng_s": 23.983121107999978,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 113,
+        "min_index": 1,
+        "max_index": 20000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.8247,
+        "rows_containing_self": 0,
+        "min_index": 0,
+        "max_index": 19999
+      },
+      "inferred_base": 1,
+      "rows_differing": 3506,
+      "max_cos_gap_in_differing_rows": 0.002321730512039988,
+      "value_max_abs_diff_vs_costal_plus_cos": 0.00280883328631798,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    },
+    {
+      "n": 50000,
+      "dedup": true,
+      "clu_meta": [
+        50000,
+        50000,
+        500000
+      ],
+      "pknng_s": 123.90095271300004,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 181,
+        "min_index": 1,
+        "max_index": 50000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.82868,
+        "rows_containing_self": 0,
+        "min_index": 0,
+        "max_index": 49999
+      },
+      "inferred_base": 1,
+      "rows_differing": 8566,
+      "max_cos_gap_in_differing_rows": 0.002063258340952001,
+      "value_max_abs_diff_vs_costal_plus_cos": 0.0031244943211478082,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    },
+    {
+      "n": 50000,
+      "dedup": false,
+      "clu_meta": [
+        50000,
+        50000,
+        500000
+      ],
+      "pknng_s": 127.99575100100003,
+      "as_0_based": {
+        "rows_identical_to_costal_plus": 0.0,
+        "rows_containing_self": 105,
+        "min_index": 1,
+        "max_index": 50000
+      },
+      "as_1_based": {
+        "rows_identical_to_costal_plus": 0.79666,
+        "rows_containing_self": 0,
+        "min_index": 0,
+        "max_index": 49999
+      },
+      "inferred_base": 1,
+      "rows_differing": 10167,
+      "max_cos_gap_in_differing_rows": 0.0030505896009584976,
+      "value_max_abs_diff_vs_costal_plus_cos": 0.00251189837431931,
+      "rows_sorted_by_value_desc": true,
+      "rows_sorted_by_index_asc": false
+    }
+  ]
+}

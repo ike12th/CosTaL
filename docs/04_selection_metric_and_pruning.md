@@ -229,12 +229,45 @@ the real `p_knng` comparison goes into Linux CI.
 >    (`idx` does), so weights and edge counts don't line up; moreover `d` is a **distance** from `cdist` (ascending),
 >    and using it directly as an edge weight inverts near and far. The default `method='tani'` is unaffected.
 > 3. **Differences from `p_knng` can only come from near-ties** (docs/06 §1.3); measure their size with golden output.
+>    **Refuted — see "Results" below.**
 > 4. **(measured) `bc()`'s `idx[:, 1:]` breaks on exact duplicate cells.** It assumes column 0 is the cell itself,
 >    but a duplicate is also at distance 0 from it and may rank first. Every gated cell in Levine_32dim has a duplicate
 >    (docs/02 addendum): in the raw (not deduplicated) 50k subsample, 7,236 rows are in duplicate groups, and **exactly half (3,618 rows) keep themselves
 >    in the neighbor list**, dropping one true neighbor (afterwards `setdiag(0)` removes the self-loop, so these rows actually end up with only k−1 neighbors).
 >    CosTaL+ excludes self by index and is unaffected. **After deduplication, the neighbor sets are 100% identical to `bc()`'s** (docs/03 §8.1).
 >    Whether `p_knng` has the same problem awaits the golden output (item 1).
+
+> **Results (2026-10-12, `golden` workflow on a GitHub x86-64 runner + `bench/pknng_analysis.py`;
+> raw numbers in `bench/out/golden_pknng.json` and `bench/out/pknng_analysis.json`).**
+> `p_knng_Linux` was run with the original's exact arguments on deduplicated and raw Levine
+> subsamples of 20k and 50k cells.
+>
+> - **Item 1 — resolved: `.clu` is 1-based** despite `-writeZidx`. Read as 1-based, indices span
+>   exactly 0…n−1 and no row contains itself; read as 0-based, indices reach n (out of range).
+>   The original's `columns - 1` is correct, so **the published pipeline has no off-by-one.**
+> - **Item 4 — resolved: `p_knng` excludes self correctly**, also on raw data with duplicate cells
+>   (0 rows contain themselves). The self-exclusion bug exists only in the non-Linux `bc()` fallback.
+> - **Item 3 — refuted: `p_knng` is not an exact cosine kNN on Levine.** Against CosTaL+'s exact
+>   kNN (deduplicated, 50k): mean recall@10 is **98.2%**, **17.1% of rows** have at least one
+>   different neighbor, and the worst row gets 7 of 10. The differences are not ties: in differing
+>   rows the cosine gap reaches 2–3×10⁻³, and even on rows with identical neighbor sets the reported
+>   similarity differs from the true cosine (median 2×10⁻⁵, max 3.2×10⁻³, in both directions).
+>   **Cause unknown.** It is not the negative values (clipping or dropping negatives fits worse:
+>   max 6–8×10⁻³ vs 3×10⁻³ for plain cosine), and not a per-feature effect (regressing the
+>   discrepancy on the 32 per-feature products explains nothing; all coefficients ≤ 1×10⁻³).
+> - **Clustering impact: within Leiden's own noise.** Building the graph exactly as the published
+>   Linux path does (p_knng's neighbors and values → original `tani_from_cos` → original
+>   `build_graph`) and running Leiden with 5 seeds next to the exact graph: same-seed partition
+>   agreement is ARI 0.886, about the same as Leiden agreeing with itself across seeds
+>   (0.83–0.87). Against the gating labels: p_knng graph ARI 0.770 ± 0.019 / NMI 0.862 ± 0.009,
+>   exact graph ARI 0.804 ± 0.073 / NMI 0.875 ± 0.026 — not distinguishable with 5 seeds.
+>
+> **Consequence for the default-value contract (§0.0, §6.5) — decision pending the author.**
+> `compat="paper"` cannot mean "bit-identical to the shipped binary": the binary's deviation from
+> its own stated method has no identified cause, so it can't be reproduced deliberately. The
+> proposal is that `compat="paper"` pins **the method as published** — exact cosine kNN, with
+> every other item of §0.0 — and that this section stays as the record of how the shipped
+> `p_knng` deviates from it.
 
 ### 4.1 Deterministic tie-break (must be settled first, otherwise all three layers above fail)
 
