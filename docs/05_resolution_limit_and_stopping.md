@@ -355,6 +355,31 @@ This is the part most worth turning into "CosTaL+":
 **The graph structure we already have is itself better suited than "distance matrix + threshold" for attaching a rigorous test.**
 This is more solid than riding on the momentum of an external model.
 
+### 3.3 Null check: the conductance rule as a feedback criterion (2026-10-14)
+
+A per-split significance test (scSHC simulates about 100 data sets per split; CHOIR trains a
+classifier per split) is too costly to run by default, and scSHC's count model does not fit
+arcsinh-transformed cytometry. The cheaper alternative is a feedback rule: partition, check each
+proposed split with a graph statistic, and keep only the splits that pass. The conductance carving of
+`find_communities_multiscale` (φ(C|H) ≤ 0.04) is such a rule. The minimum it must meet is to leave one
+structureless population in one piece. One isotropic Gaussian, N(5, 1) in every dimension, seed 0:
+
+| Cells × features | `find_communities` (paper, 0.8) | `leiden="fast"`, 0.8 | multiscale |
+|---|---:|---:|---:|
+| 20,000 × 20 | 6 clusters (5,179 / 5,175 / 5,155 / 2,241 / 1,489 / 761) | 5 | **1** |
+| 100,000 × 30 | 4 clusters (49,489 / 49,163 / 1,338 / 10) | 3 | **1** |
+
+A single resolution over-clusters structureless data; the conductance rule does not. Two nulls are
+not a calibration. Next steps, in order of cost:
+1. Calibrate φ_max on a grid of nulls (cell count, dimension, density gradient, heavy tails,
+   a continuous trajectory) so that the rate of false splits is known. This gives most of what a
+   test gives at the cost of one pass over the graph.
+2. Use seed stability as a second signal: multiscale already runs 4 seeds per resolution.
+3. Offer the same merge feedback after a single-resolution `find_communities`: merge two adjacent
+   clusters whose cut is not clean.
+
+Significance tests stay an external, after-the-fact check (e.g. scSHC on CosTaL's labels).
+
 ---
 
 ## 4. Where foundation model embeddings fit

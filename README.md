@@ -105,6 +105,7 @@ every case.
   - [04 Selection metric and pruning](docs/04_selection_metric_and_pruning.md)
   - [05 Resolution limit](docs/05_resolution_limit_and_stopping.md)
   - [06 Cross-platform determinism](docs/06_cross_platform_and_determinism.md)
+  - [07 Leiden implementations](docs/07_leiden_implementations.md): why leidenalg is slow, how igraph's Leiden works, a native Leiden
 
 ## Citing
 
