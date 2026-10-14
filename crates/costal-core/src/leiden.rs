@@ -203,34 +203,23 @@ pub fn leiden_many(g: &Csr, runs: &[LeidenParams]) -> Result<Vec<Partition>, Str
 /// (`runs.len()` rows of `g.n()` labels); returns the runs' summaries in the order of `runs`.
 ///
 /// One task per thread takes the runs in turn and reuses one [`Workspace`] for all of them, so
-/// memory is the graph, `out`, and one run's working set per task. On large graphs fewer tasks
-/// than threads run, so that their working sets stay within [`MANY_RUNS_MEMORY`]. Each run is
-/// sequential inside, and its result is the same as from [`leiden`].
+/// memory is the graph, `out`, and one run's working set per thread (about 48 MB per thread on
+/// Levine_32; run inside a smaller rayon pool to use less). With more threads than runs, the
+/// spare threads share each run's refinement and aggregation; otherwise each run is sequential
+/// inside. Either way each result is the same as from [`leiden`].
 pub fn leiden_many_into(
     g: &Csr,
     runs: &[LeidenParams],
     out: &mut [u32],
 ) -> Result<Vec<RunInfo>, String> {
-    let tasks = many_tasks(g, MANY_RUNS_MEMORY, rayon::current_num_threads());
-    many_into(g, runs, out, tasks)
-}
-
-/// Memory that [`leiden_many_into`]'s concurrent runs may use beyond the graph and the output.
-pub const MANY_RUNS_MEMORY: usize = 2 << 30;
-
-/// Concurrent runs for `leiden_many_into`: the thread count, unless the runs' estimated working
-/// sets would exceed `budget`. The estimate, 24 bytes per CSR entry plus 64 per node, is above
-/// what was measured (about 48 MB per run on Levine_32: 2.6 M entries, 161,443 nodes).
-fn many_tasks(g: &Csr, budget: usize, threads: usize) -> usize {
-    let per_run = 24 * g.nbr.len() + 64 * g.n();
-    threads.min(budget / per_run.max(1)).max(1)
+    many_into(g, runs, out, rayon::current_num_threads())
 }
 
 fn many_into(
     g: &Csr,
     runs: &[LeidenParams],
     out: &mut [u32],
-    tasks: usize,
+    threads: usize,
 ) -> Result<Vec<RunInfo>, String> {
     let n = g.n();
     if out.len() != runs.len() * n {
@@ -246,7 +235,8 @@ fn many_into(
     let nw = g.strengths();
     let rows: Vec<Mutex<&mut [u32]>> = out.chunks_mut(n).map(Mutex::new).collect();
     let next = AtomicUsize::new(0);
-    let tasks = tasks.clamp(1, runs.len().max(1));
+    let tasks = threads.clamp(1, runs.len().max(1));
+    let inner = threads > runs.len(); // spare threads: parallel inside each run
     let done: Vec<Vec<(usize, Result<RunInfo, String>)>> = (0..tasks)
         .into_par_iter()
         .with_max_len(1)
@@ -259,7 +249,7 @@ fn many_into(
                     break mine;
                 }
                 let mut row = rows[i].lock().expect("each row is taken once");
-                mine.push((i, run(g, &nw, &runs[i], None, false, &mut ws, &mut row[..])));
+                mine.push((i, run(g, &nw, &runs[i], None, inner, &mut ws, &mut row[..])));
             }
         })
         .collect();
@@ -1668,20 +1658,18 @@ mod tests {
     }
 
     #[test]
-    fn many_runs_are_the_same_at_any_task_count() {
+    fn many_runs_are_the_same_at_any_thread_count() {
         let g = planted(20, 30, 0.2, 400, 6);
         let runs: Vec<LeidenParams> = (0..6).map(|s| params(0.5 + 0.3 * s as f64, s)).collect();
         let n = g.n();
         let mut base = vec![0u32; runs.len() * n];
         let infos = many_into(&g, &runs, &mut base, 1).unwrap();
-        for tasks in [2, 3, 8] {
+        // 8 threads for 6 runs: the spare threads work inside the runs
+        for threads in [2, 3, 8] {
             let mut out = vec![0u32; runs.len() * n];
-            assert_eq!(many_into(&g, &runs, &mut out, tasks).unwrap(), infos);
-            assert_eq!(out, base, "{tasks} tasks");
+            assert_eq!(many_into(&g, &runs, &mut out, threads).unwrap(), infos);
+            assert_eq!(out, base, "{threads} threads");
         }
-        // The memory budget caps the tasks on a large graph, not on a small one
-        assert_eq!(many_tasks(&g, MANY_RUNS_MEMORY, 10), 10);
-        assert_eq!(many_tasks(&g, 1, 10), 1);
     }
 
     #[test]

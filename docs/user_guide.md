@@ -412,10 +412,10 @@ peak memory above the loaded input (Apple M1 Pro, `bench/memory.py`):
 | `find_communities(leiden="igraph")` | 312 MB | 606 MB | 1,021 MB |
 | `find_communities_multiscale` (10 threads) | 569 MB | 1,090 MB | |
 
-`find_communities_multiscale` runs one Leiden per thread at a time, and each needs about 1.5 times
-the graph (about 48 MB on Levine_32): pass `n_threads` to trade time for memory (Levine_32: 267 MB
-and 8.6 s on 4 threads, 584 MB and 6 s on 10). On large graphs it runs fewer at once by itself, so
-that they stay within 2 GiB (docs/07 §5.1).
+`find_communities_multiscale` runs one Leiden per thread at a time, each needing about 1.5 times
+the graph (about 48 MB on Levine_32), so its memory grows with the thread count. On a machine where
+memory is tight, pass `n_threads` to trade time for memory (Levine_32: 267 MB and 8.6 s on 4
+threads, 584 MB and 6 s on 10).
 
 To keep memory low:
 

@@ -235,7 +235,8 @@ negative or non-finite weights are errors. A graph without edges returns singlet
 
 **Many runs.** `leiden_many_into` runs the multiscale ensemble (11 resolutions × 4 seeds) on one
 shared graph:
-- one task per thread takes the runs in turn, each run sequential inside;
+- one task per thread takes the runs in turn, each run sequential inside; with more threads than
+  runs (a large server), the spare threads share each run's refinement and aggregation;
 - each run writes its membership straight into its row of the output;
 - levels under 5,000 nodes are always sequential (rayon's dispatch costs about 1 ms per run on a
   500-node graph).
@@ -252,10 +253,10 @@ levels, iterations and runs:
   the cluster's subgraph, which at low resolutions is nearly the whole graph, once per thread.
 - **Result.** Peak above the edge list for the 44 runs on Levine_32 is 109 MB on 1 thread, 267 MB
   on 4 and 584 MB on 10, about 48 MB per concurrent run. `n_threads` trades time for memory.
-- **A budget.** On large graphs fewer runs than threads run at once, so that their estimated
-  working sets (24 bytes per CSR entry plus 64 per node, above the measured 48 MB on Levine_32)
-  stay within 2 GiB. Levine_32 and Mosmann_rare are not capped at 10 threads; a million cells
-  would run about four at once.
+- **No cap by default.** One run per thread, whatever the graph's size: CosTaL targets servers
+  where memory and cores are plentiful (decided 2026-10-14). On a smaller machine `n_threads`
+  lowers both. The exact-size counting pass costs nothing measurable (44 runs on Levine_32: best
+  6.66 s without it, 6.67 s with it), so it stays.
 - **Results unchanged.** None of this changes a result: the digests of `tests/test_leiden_native.py`
   are the same before and after.
 
