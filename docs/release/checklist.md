@@ -43,8 +43,15 @@ creates the environment `pypi` on the first run that uses it; to require an appr
 upload, create it first under the repository's *Settings → Environments* with a required reviewer.
 
 Then on GitHub: *Releases → Draft a new release* from the tag, paste the CHANGELOG section, *Publish*.
-Publishing the release runs the `publish` job of `wheels.yml`, which uploads the wheels and the sdist
-built for that tag. Check https://pypi.org/project/CosTaL/ and, in a fresh environment:
+Publishing the release runs two jobs of `wheels.yml` on the wheels and the sdist built for that tag:
+`attach` adds them to the GitHub release, and `publish` uploads them to PyPI.
+
+**If PyPI access is not ready** (2026-10: the account that owns the `CosTaL` project, `li000678`, is
+in account recovery with the PyPI admins, pypi/support), the release can still go out: `attach`
+succeeds and `publish` fails. Until PyPI has 2.0, users install it from the release with
+`pip install --upgrade CosTaL --find-links https://github.com/ike12th/CosTaL/releases/expanded_assets/v2.0.0`.
+Once the trusted publisher is set up, open that workflow run and *Re-run failed jobs*: `publish`
+uploads the same files, built from the tag, to PyPI. Check https://pypi.org/project/CosTaL/ and, in a fresh environment:
 
 ```bash
 pip install --upgrade CosTaL && costal info && python -c "import costal, CosTaL; print(costal.__version__, CosTaL.__version__)"

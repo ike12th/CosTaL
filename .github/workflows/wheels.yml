@@ -73,6 +73,25 @@ jobs:
           name: wheels-sdist
           path: dist
 
+  attach:
+    # Runs only when a maintainer publishes a GitHub release: attaches this tag's wheels and sdist
+    # to the release, so they can be installed from there as well as from PyPI.
+    name: attach to the GitHub release
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [build, sdist]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - run: gh release upload "${{ github.event.release.tag_name }}" dist/* --repo "${{ github.repository }}" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   publish:
     # Runs only when a maintainer publishes a GitHub release: uploads this tag's wheels and sdist to
     # PyPI through trusted publishing (no token in the repository; docs/release/checklist.md).

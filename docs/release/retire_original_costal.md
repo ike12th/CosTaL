@@ -6,17 +6,24 @@ moves users to 2.0, and 1.0 code keeps running on it. What remains is the old re
 
 ## Replace its README and archive it
 
-Once 2.0 is on PyPI, replace the README of `li000678/CosTaL` with the text below (adjust the URL if
-this repository moves or is renamed), commit, then *Settings → Archive this repository*. Archiving
-keeps every link and the history readable and marks the old code as no longer maintained.
+This can be done before 2.0 reaches PyPI: the README below sends readers to this repository's own
+installation instructions instead of naming a `pip` command that could go stale. As the owner of
+`li000678/CosTaL`, on GitHub:
+
+1. Edit `README.md` on the default branch (`master`), replace its content with the text below
+   (adjust the URL if this repository moves), and commit.
+2. *Settings → General*: set the description to "CosTaL 1.0 (archived). Continued at
+   github.com/ike12th/CosTaL" and the website to https://github.com/ike12th/CosTaL.
+3. *Settings → General → Danger Zone → Archive this repository*. Archiving keeps every link and the
+   history readable, and marks the code as no longer maintained. (An archived repository is
+   read-only; unarchive it first to change anything later.)
 
 ```markdown
-# CosTaL — now developed at https://github.com/ike12th/CosTaL
+# CosTaL 1.0 — retired
 
-**This repository holds CosTaL 1.0 and is archived.** CosTaL 2.0 and later are developed at
-https://github.com/ike12th/CosTaL.
-
-    pip install --upgrade CosTaL
+**This repository is no longer maintained.** It holds CosTaL 1.0 (on PyPI as 0.0.2.4).
+CosTaL continues at **https://github.com/ike12th/CosTaL** — see there to install the current
+version.
 
 CosTaL 2.0 is the same method (Li et al., *Briefings in Bioinformatics* 2023,
 doi:10.1093/bib/bbad157) — exact cosine kNN, Tanimoto edge weights, Leiden — rewritten in Rust:
