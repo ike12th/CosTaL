@@ -112,7 +112,7 @@ The output has one row per input cell: `cell,cluster`.
 ### Faster, or finer
 
 ```python
-labels = costal.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
+labels = costal.find_communities(X, leiden="fast")         # CosTaL's own Leiden: 10-50x faster end to end
 labels = costal.find_communities(X, resolution=0.4)        # fewer, larger clusters
 labels = costal.find_communities_multiscale(X)             # rare populations kept (section 5)
 ```
@@ -169,8 +169,9 @@ for resolution in (0.2, 0.4, 0.8, 1.6):
 - **Edge weights**: Tanimoto `T = c‖a‖‖b‖ / (‖a‖² + ‖b‖² − c‖a‖‖b‖)` from the cosine `c` and the raw
   row norms (the paper), or the cosine itself, or Jaccard on shared neighbors.
 - **Symmetrization**: the fuzzy union `S + Sᵀ − S∘Sᵀ`, exactly as the original.
-- **Leiden**: `leidenalg`'s RBConfiguration partition, resolution 0.8, 10 iterations (the paper), or
-  igraph's native implementation (`leiden="fast"`).
+- **Leiden**: `leidenalg`'s RBConfiguration partition, resolution 0.8, 10 iterations (the paper);
+  CosTaL's own implementation of the same algorithm, in Rust (`leiden="fast"`, docs/07 §5); or
+  igraph's (`leiden="igraph"`).
 
 ---
 
@@ -244,11 +245,11 @@ CosTaL.
 | `weight` | edge weights: `"tanimoto"` (paper), `"cosine"` or `"jaccard"` |
 | `normalize` | `"l2"` or `"none"`; the default follows `select` and needs no change |
 | `resolution` | Leiden resolution (0.8 in the paper); higher gives more clusters |
-| `leiden` | `"paper"`: leidenalg, 10 iterations; `"fast"`: igraph's native Leiden, 2 iterations |
+| `leiden` | `"paper"`: leidenalg, 10 iterations; `"fast"`: CosTaL's own Leiden, 2 iterations; `"igraph"`: igraph's Leiden, 2 iterations |
 | `n_iterations` | Leiden iterations; negative runs until stable |
-| `seed` | Leiden seed, for repeatable clusters |
+| `seed` | Leiden seed, for repeatable clusters; with `"fast"` the same on every platform and thread count |
 | `compat` | `"paper"` raises on any setting that departs from the published method |
-| `n_threads` | threads for the kNN; default all cores |
+| `n_threads` | threads for the kNN and the `"fast"` Leiden; default all cores |
 
 ### `find_communities_multiscale(X, k=10, *, phi_max=0.04, select="cosine", weight="tanimoto", normalize=None, resolutions=None, seeds=4, leiden="fast", n_iterations=2, min_size=None, compat=None, n_threads=None, return_info=False)`
 
@@ -327,10 +328,12 @@ costal info
   reasonable start, not a rule: sweep a few values on one `build_graph` (section 4) — it costs only
   Leiden runs.
 - **k**: 10 (the paper). Larger k smooths the graph and merges small populations.
-- **`leiden="fast"`** (igraph's Leiden) runs 5–14× faster end to end than the default, at accuracy
-  against the labels comparable within Leiden's run-to-run noise on every dataset we measured, but it
-  does not reproduce the paper's individual partitions. Use it for exploration and sweeps; use the
-  default to reproduce published results.
+- **`leiden="fast"`** (CosTaL's own Leiden) runs 10–50× faster end to end than the default on all
+  but the two smallest datasets. It optimizes the same objective with the same algorithm: over 20
+  seeds its modularity, ARI and per-population F1 match igraph's Leiden (docs/07 §5.2), and its ARI
+  and F1 match leidenalg's within Leiden's run-to-run noise. It does not reproduce the paper's
+  individual partitions: use it for exploration and sweeps, and the default to reproduce published
+  results.
 - **`select="tanimoto"`** chooses neighbors by Tanimoto on the raw rows instead of cosine. On
   low-dimensional panels where populations differ in overall marker abundance (Levine_13: 13
   markers) it recovered rare populations better at equal ARI; elsewhere it tied (docs/04 §5.1).
@@ -345,6 +348,9 @@ costal info
   results across machines, operating systems, thread counts and matrix-multiplication backends.
 - **Leiden is randomized.** Pass `seed=` for repeatable clusters. The same seed reproduces the same
   partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
+- **`leiden="fast"` gives the same partition everywhere.** CosTaL's own Leiden draws from its own
+  random streams and its own `exp`, so a seed gives bit-identical clusters on macOS, Linux and
+  Windows and at any `n_threads` (tested on every platform in CI).
 - **The same seed holds within one Leiden version.** leidenalg 0.12.0 changed its default refinement
   (libleidenalg 0.13.0 picks a random neighboring community where earlier versions took the best one),
   so a seed gives different partitions under leidenalg ≤ 0.11 and 0.12. To reproduce a partition
@@ -367,19 +373,22 @@ original code's own kNN path (docs/03 §10.4):
 
 | Dataset | Cells × features | Original | CosTaL 2.0 | CosTaL 2.0 `leiden="fast"` | Graph only | Same neighbors | Accuracy (original / CosTaL 2.0 / fast) |
 |---|---|---:|---:|---:|---:|---:|---|
-| E-MTAB-3321 | 124 × 2,000 | 0.06 s | 0.02 s (3.1×) | 0.004 s (17×) | 13× | 100% | ARI 0.687 / 0.687 / 0.687 |
-| GSE81861 | 561 × 2,000 | 1.0 s | 0.11 s (9.1×) | 0.02 s (41×) | 40× | 100% | ARI 1.000 / 1.000 / 1.000 |
-| GSE74672 | 2,881 × 2,000 | 26 s | 0.76 s (35×) | 0.13 s (197×) | 205× | 100% | ARI 0.495 / 0.495 / 0.492 |
-| GSE84133 | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.21 s (195×) | 208× | 100% | ARI 0.845 / 0.845 / 0.851 |
-| Nilsson_rare | 44,140 × 14 | 32 s | 12 s (2.7×) | 0.90 s (36×) | 31× | 100% | HSC F1 0.152 / 0.153 / 0.189 |
-| Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 2.3 s (39×) | 39× | 100% | ARI 0.843 / 0.843 / 0.808 |
-| Levine_13 | 167,044 × 13 | 165 s | 69 s (2.4×) | 5.8 s (28×) | 26× | 100% | ARI 0.849 / 0.873 / 0.846 |
-| Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% | ARI 0.756 / 0.756 / 0.758 |
-| Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% | activated F1 0.020 / 0.019 / 0.038 |
+| E-MTAB-3321 | 124 × 2,000 | 0.06 s | 0.02 s (3.1×) | 0.003 s (23×) | 13× | 100% | ARI 0.687 / 0.687 / 0.687 |
+| GSE81861 | 561 × 2,000 | 1.0 s | 0.11 s (9.1×) | 0.031 s (33×) | 40× | 100% | ARI 1.000 / 1.000 / 1.000 |
+| GSE74672 | 2,881 × 2,000 | 26 s | 0.76 s (35×) | 0.070 s (376×) | 205× | 100% | ARI 0.495 / 0.495 / 0.475 |
+| GSE84133 | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.098 s (420×) | 208× | 100% | ARI 0.845 / 0.845 / 0.852 |
+| Nilsson_rare | 44,140 × 14 | 32 s | 12 s (2.7×) | 0.29 s (110×) | 31× | 100% | HSC F1 0.152 / 0.153 / 0.147 |
+| Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 0.89 s (102×) | 39× | 100% | ARI 0.843 / 0.843 / 0.904 |
+| Levine_13 | 167,044 × 13 | 165 s | 69 s (2.4×) | 2.5 s (67×) | 26× | 100% | ARI 0.849 / 0.873 / 0.832 |
+| Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 2.3 s (128×) | 45× | 100% | ARI 0.756 / 0.756 / 0.763 |
+| Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 11.5 s (159×) | 73× | 100% | activated F1 0.020 / 0.019 / 0.651 |
 
 - "Graph only" is the kNN + weights + graph, where CosTaL 2.0's work is; with the paper's Leiden
   settings, leidenalg itself is 80–97% of CosTaL 2.0's time, which is why the end-to-end gain on the
   large cytometry sets is 2.4–4.3×. `leiden="fast"` removes that bottleneck.
+- Accuracy is one Leiden seed per run, and a single rare population's F1 swings widely with the
+  seed: over 20 seeds Mosmann_rare's activated-cell F1 averages 0.28 with `fast` and 0.25 with
+  igraph's Leiden (docs/07 §5.2), so the 0.651 above is a lucky seed, not an improvement.
 - At the same Leiden seed the partitions are identical on six datasets; on Nilsson_rare, Levine_13
   and Mosmann_rare the graphs have the same edges but the original's edge weights carry float32
   rounding (≤ 6×10⁻⁷; CosTaL 2.0 computes them in float64), and Leiden follows a different path from
@@ -390,17 +399,23 @@ original code's own kNN path (docs/03 §10.4):
 ### Memory
 
 CosTaL 2.0 needs about **twice the input matrix** for the kNN — the input as float32 plus one working
-copy — plus 12 bytes per neighbor for the result; graph construction and Leiden add a few hundred
-bytes per edge (about k edges per cell), most of it inside igraph. Measured peak memory above the
-loaded input (Apple M1 Pro):
+copy — plus 12 bytes per neighbor for the result; graph construction and `leiden="fast"` add about a
+hundred bytes per edge (about k edges per cell), and going through igraph about twice that. Measured
+peak memory above the loaded input (Apple M1 Pro, `bench/memory.py`):
 
 | Step | Levine_32 (161,443 × 32, 20 MB) | Mosmann_rare (396,460 × 15, 23 MB) | Dense 100,000 × 2,000 (763 MB) |
 |---|---:|---:|---:|
 | `preprocess(…, "mass")` | 36 MB | 39 MB | 779 MB (the output itself) |
-| `knn` | 81 MB | 124 MB | 840 MB |
-| `build_graph` | 118 MB | 252 MB | 863 MB |
-| `find_communities(leiden="fast")` | 311 MB | 681 MB | 1,036 MB |
-| `find_communities_multiscale` | 369 MB | | |
+| `knn` | 83 MB | 122 MB | 843 MB |
+| `build_graph` | 118 MB | 248 MB | 864 MB |
+| `find_communities(leiden="fast")` | 173 MB | 374 MB | 936 MB |
+| `find_communities(leiden="igraph")` | 312 MB | 606 MB | 1,021 MB |
+| `find_communities_multiscale` (10 threads) | 569 MB | 1,090 MB | |
+
+`find_communities_multiscale` runs one Leiden per thread at a time, and each needs about 1.5 times
+the graph (about 48 MB on Levine_32): pass `n_threads` to trade time for memory (Levine_32: 267 MB
+and 8.6 s on 4 threads, 584 MB and 6 s on 10). On large graphs it runs fewer at once by itself, so
+that they stay within 2 GiB (docs/07 §5.1).
 
 To keep memory low:
 
@@ -464,7 +479,7 @@ What changes in the results, and why:
 
 | Symptom | Cause and fix |
 |---|---|
-| `ImportError: ... needs igraph / leidenalg / scanpy` | they install with CosTaL; reinstall it (`pip install --force-reinstall CosTaL`), or on Windows on Arm use `leiden="fast"` |
+| `ImportError: ... needs igraph / leidenalg / scanpy` | they install with CosTaL; reinstall it (`pip install --force-reinstall CosTaL`), or on Windows on Arm use `leiden="fast"`, which needs neither |
 | `ValueError: ... seurat_v3 ... skmisc` or a numpy dtype-size error from `skmisc` | scikit-misc built for another numpy (e.g. numpy upgraded to 2.x by hand on Python 3.9): `pip install "numpy<2"` |
 | `TypeError: sparse input needs the sparse backend` | `knn` takes dense matrices; for scRNA-seq call `preprocess` first (it returns a dense matrix) |
 | `ValueError: row ... contains NaN or inf` | clean or impute the input; CosTaL 2.0 never guesses |

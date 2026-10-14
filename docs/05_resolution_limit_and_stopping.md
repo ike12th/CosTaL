@@ -364,10 +364,13 @@ proposed split with a graph statistic, and keep only the splits that pass. The c
 `find_communities_multiscale` (φ(C|H) ≤ 0.04) is such a rule. The minimum it must meet is to leave one
 structureless population in one piece. One isotropic Gaussian, N(5, 1) in every dimension, seed 0:
 
-| Cells × features | `find_communities` (paper, 0.8) | `leiden="fast"`, 0.8 | multiscale |
-|---|---:|---:|---:|
-| 20,000 × 20 | 6 clusters (5,179 / 5,175 / 5,155 / 2,241 / 1,489 / 761) | 5 | **1** |
-| 100,000 × 30 | 4 clusters (49,489 / 49,163 / 1,338 / 10) | 3 | **1** |
+| Cells × features | `find_communities` (paper, 0.8) | igraph, 0.8 | native `"fast"`, 0.8 | multiscale (igraph / native) |
+|---|---:|---:|---:|---:|
+| 20,000 × 20 | 6 clusters (5,179 / 5,175 / 5,155 / 2,241 / 1,489 / 761) | 5 | 5 | **1 / 1** |
+| 100,000 × 30 | 4 clusters (49,489 / 49,163 / 1,338 / 10) | 3 | 6 | **1 / 1** |
+
+(The native Leiden, docs/07 §5, became `leiden="fast"` the same day; the igraph column was `"fast"`
+when this was first run.)
 
 A single resolution over-clusters structureless data; the conductance rule does not. Two nulls are
 not a calibration. Next steps, in order of cost:

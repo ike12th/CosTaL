@@ -26,7 +26,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 13.396285601465516,
       "speedup_end_to_end_paper": 3.1205559915443124,
-      "speedup_end_to_end_fast": 17.032081033506195
+      "speedup_end_to_end_fast": 17.032081033506195,
+      "fast_native": {
+        "end_to_end_s": 0.002821374999999904,
+        "accuracy": 0.6874447148644961,
+        "speedup_end_to_end": 22.721766514554496
+      }
     },
     "GSE81861": {
       "cells": 561,
@@ -54,7 +59,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 39.649096870645984,
       "speedup_end_to_end_paper": 9.11812876474678,
-      "speedup_end_to_end_fast": 41.43325695230696
+      "speedup_end_to_end_fast": 41.43325695230696,
+      "fast_native": {
+        "end_to_end_s": 0.03115654200000062,
+        "accuracy": 1.0,
+        "speedup_end_to_end": 33.066835562174255
+      }
     },
     "GSE74672": {
       "cells": 2881,
@@ -82,7 +92,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 205.24978415288757,
       "speedup_end_to_end_paper": 34.93345620412372,
-      "speedup_end_to_end_fast": 196.7742133395358
+      "speedup_end_to_end_fast": 196.7742133395358,
+      "fast_native": {
+        "end_to_end_s": 0.07030500000000028,
+        "accuracy": 0.47526432505949817,
+        "speedup_end_to_end": 376.35989616670054
+      }
     },
     "GSE84133": {
       "cells": 3605,
@@ -110,7 +125,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 208.49392749593366,
       "speedup_end_to_end_paper": 40.134833175764406,
-      "speedup_end_to_end_fast": 195.4516288702745
+      "speedup_end_to_end_fast": 195.4516288702745,
+      "fast_native": {
+        "end_to_end_s": 0.09796879200000053,
+        "accuracy": 0.8515060004506302,
+        "speedup_end_to_end": 419.6853622427007
+      }
     },
     "Levine_13": {
       "cells": 167044,
@@ -138,7 +158,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 26.491318926666988,
       "speedup_end_to_end_paper": 2.412420995154208,
-      "speedup_end_to_end_fast": 28.39321262329756
+      "speedup_end_to_end_fast": 28.39321262329756,
+      "fast_native": {
+        "end_to_end_s": 2.480294209,
+        "accuracy": 0.8319976187833301,
+        "speedup_end_to_end": 66.65318600072573
+      }
     },
     "Nilsson_rare": {
       "cells": 44140,
@@ -166,7 +191,12 @@
       "accuracy_metric": "rare-population F1",
       "speedup_graph": 30.69506155637664,
       "speedup_end_to_end_paper": 2.682321105754719,
-      "speedup_end_to_end_fast": 35.70581825097744
+      "speedup_end_to_end_fast": 35.70581825097744,
+      "fast_native": {
+        "end_to_end_s": 0.2928137080000006,
+        "accuracy": 0.1467403314917127,
+        "speedup_end_to_end": 110.26399462145358
+      }
     },
     "Samusik_01": {
       "cells": 86864,
@@ -194,7 +224,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 39.08885597320009,
       "speedup_end_to_end_paper": 2.852502897765095,
-      "speedup_end_to_end_fast": 39.375193667028825
+      "speedup_end_to_end_fast": 39.375193667028825,
+      "fast_native": {
+        "end_to_end_s": 0.8934239170000016,
+        "accuracy": 0.9035777932703059,
+        "speedup_end_to_end": 101.60571498893505
+      }
     },
     "Levine_32": {
       "cells": 161443,
@@ -222,7 +257,12 @@
       "accuracy_metric": "ARI",
       "speedup_graph": 44.71882335032811,
       "speedup_end_to_end_paper": 4.3212159653917706,
-      "speedup_end_to_end_fast": 59.70327544496244
+      "speedup_end_to_end_fast": 59.70327544496244,
+      "fast_native": {
+        "end_to_end_s": 2.3394547090000017,
+        "accuracy": 0.7633775765319151,
+        "speedup_end_to_end": 128.2873234354202
+      }
     },
     "Mosmann_rare": {
       "cells": 396460,
@@ -250,7 +290,12 @@
       "accuracy_metric": "rare-population F1",
       "speedup_graph": 72.53007880468387,
       "speedup_end_to_end_paper": 3.1087409392284173,
-      "speedup_end_to_end_fast": 29.773295204853177
+      "speedup_end_to_end_fast": 29.773295204853177,
+      "fast_native": {
+        "end_to_end_s": 11.485107875,
+        "accuracy": 0.6507462686567164,
+        "speedup_end_to_end": 158.97861893169204
+      }
     }
   },
   "environment": {
@@ -258,7 +303,7 @@
     "machine": "arm64",
     "python": "3.9.6",
     "numpy": "1.26.4",
-    "costal_plus": "0.1.0",
+    "costal_plus": "2.0.0",
     "threads": 8,
     "default_matmul": "accelerate",
     "l2_bytes_per_thread": 4194304,

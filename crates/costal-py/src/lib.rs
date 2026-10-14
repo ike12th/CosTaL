@@ -6,6 +6,7 @@
 //! with argument validation and input diagnostics.
 
 use costal_core::knn::{self, Knn, KnnParams, Select};
+use costal_core::leiden::{self, Csr, LeidenParams, Partition};
 use costal_core::matmul::Matmul;
 use costal_core::weight::{self, Weight};
 use costal_core::{cache, graph};
@@ -237,6 +238,131 @@ fn _fuzzy_union<'py>(
     ))
 }
 
+/// View a non-negative int32 array as u32, without copying.
+fn as_u32<'a>(a: &'a PyReadonlyArray1<'_, i32>) -> PyResult<&'a [u32]> {
+    let s = a.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    if let Some(&bad) = s.iter().find(|&&j| j < 0) {
+        return Err(value_err(format!("negative index {bad}")));
+    }
+    // SAFETY: same size and alignment, and every value was just checked to be non-negative
+    Ok(unsafe { std::slice::from_raw_parts(s.as_ptr().cast::<u32>(), s.len()) })
+}
+
+/// An edge list (rows, cols, weights) as `_fuzzy_union` returns it, without copying.
+fn edge_list<'a>(
+    rows: &'a PyReadonlyArray1<'_, i32>,
+    cols: &'a PyReadonlyArray1<'_, i32>,
+    w: &'a PyReadonlyArray1<'_, f64>,
+) -> PyResult<(&'a [u32], &'a [u32], &'a [f64])> {
+    let w = w.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    Ok((as_u32(rows)?, as_u32(cols)?, w))
+}
+
+fn membership_to_py(py: Python<'_>, p: Partition) -> Bound<'_, PyArray1<i32>> {
+    // u32 → i32 reuses the allocation (labels < n ≤ u32 range was checked by Csr::from_edges)
+    Array1::from_vec(
+        p.membership
+            .into_iter()
+            .map(|c| c as i32)
+            .collect::<Vec<i32>>(),
+    )
+    .into_pyarray(py)
+}
+
+/// Leiden (modularity, resolution γ) on an upper-triangular edge list; returns (membership,
+/// n_clusters, iterations, converged). Deterministic for a seed at any thread count.
+#[pyfunction]
+#[pyo3(signature = (n, rows, cols, weights, *, resolution, beta=0.01, n_iterations=2, seed=0, n_threads=None))]
+#[allow(clippy::too_many_arguments)]
+fn _leiden<'py>(
+    py: Python<'py>,
+    n: usize,
+    rows: PyReadonlyArray1<'py, i32>,
+    cols: PyReadonlyArray1<'py, i32>,
+    weights: PyReadonlyArray1<'py, f64>,
+    resolution: f64,
+    beta: f64,
+    n_iterations: i32,
+    seed: u64,
+    n_threads: Option<usize>,
+) -> PyResult<(Bound<'py, PyArray1<i32>>, usize, usize, bool)> {
+    let (r, c, w) = edge_list(&rows, &cols, &weights)?;
+    let params = LeidenParams {
+        resolution,
+        beta,
+        n_iterations,
+        seed,
+    };
+    let p = py
+        .detach(|| {
+            with_threads(n_threads, || {
+                Csr::from_edges(n, r, c, w).and_then(|g| leiden::leiden(&g, &params))
+            })
+        })?
+        .map_err(value_err)?;
+    let (k, it, conv) = (p.n_clusters, p.iterations, p.converged);
+    Ok((membership_to_py(py, p), k, it, conv))
+}
+
+/// Leiden at every (resolution, seed) pair, in parallel on one graph; memberships as an int32
+/// array of shape (len(resolutions) * len(seeds), n), resolutions outer.
+#[pyfunction]
+#[pyo3(signature = (n, rows, cols, weights, *, resolutions, seeds, beta=0.01, n_iterations=2, n_threads=None))]
+#[allow(clippy::too_many_arguments)]
+fn _leiden_many<'py>(
+    py: Python<'py>,
+    n: usize,
+    rows: PyReadonlyArray1<'py, i32>,
+    cols: PyReadonlyArray1<'py, i32>,
+    weights: PyReadonlyArray1<'py, f64>,
+    resolutions: Vec<f64>,
+    seeds: Vec<u64>,
+    beta: f64,
+    n_iterations: i32,
+    n_threads: Option<usize>,
+) -> PyResult<Bound<'py, PyArray2<i32>>> {
+    let (r, c, w) = edge_list(&rows, &cols, &weights)?;
+    let runs: Vec<LeidenParams> = resolutions
+        .iter()
+        .flat_map(|&resolution| {
+            seeds.iter().map(move |&seed| LeidenParams {
+                resolution,
+                beta,
+                n_iterations,
+                seed,
+            })
+        })
+        .collect();
+    // Each run writes its row of the output directly; u32 → i32 then reuses the allocation
+    let mut out = vec![0u32; runs.len() * n];
+    py.detach(|| {
+        with_threads(n_threads, || {
+            Csr::from_edges(n, r, c, w).and_then(|g| leiden::leiden_many_into(&g, &runs, &mut out))
+        })
+    })?
+    .map_err(value_err)?;
+    let out: Vec<i32> = out.into_iter().map(|x| x as i32).collect();
+    Ok(Array2::from_shape_vec((runs.len(), n), out)
+        .map_err(value_err)?
+        .into_pyarray(py))
+}
+
+/// Modularity of a membership at resolution γ on an upper-triangular edge list.
+#[pyfunction]
+fn _modularity(
+    n: usize,
+    rows: PyReadonlyArray1<'_, i32>,
+    cols: PyReadonlyArray1<'_, i32>,
+    weights: PyReadonlyArray1<'_, f64>,
+    membership: PyReadonlyArray1<'_, i32>,
+    resolution: f64,
+) -> PyResult<f64> {
+    let (r, c, w) = edge_list(&rows, &cols, &weights)?;
+    let m = as_u32(&membership)?;
+    let g = Csr::from_edges(n, r, c, w).map_err(value_err)?;
+    leiden::modularity(&g, m, resolution).map_err(value_err)
+}
+
 /// L2 bytes each thread has to itself on this machine; None if unavailable (docs/06 §2.3).
 #[pyfunction]
 fn l2_bytes_per_thread() -> Option<usize> {
@@ -265,6 +391,9 @@ fn _costal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_knn_bruteforce, m)?)?;
     m.add_function(wrap_pyfunction!(_reweight, m)?)?;
     m.add_function(wrap_pyfunction!(_fuzzy_union, m)?)?;
+    m.add_function(wrap_pyfunction!(_leiden, m)?)?;
+    m.add_function(wrap_pyfunction!(_leiden_many, m)?)?;
+    m.add_function(wrap_pyfunction!(_modularity, m)?)?;
     m.add_function(wrap_pyfunction!(l2_bytes_per_thread, m)?)?;
     m.add_function(wrap_pyfunction!(tile_budget_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(default_matmul, m)?)?;

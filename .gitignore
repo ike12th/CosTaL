@@ -28,6 +28,8 @@ bench/out/*
 !bench/out/two_level.json
 !bench/out/timing_small.json
 !bench/out/magnitude_confirm.json
+!bench/out/leiden_native.json
+!bench/out/memory.json
 .venv-arm64/
 bench/data/
 .DS_Store

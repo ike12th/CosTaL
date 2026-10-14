@@ -1,0 +1,40 @@
+{
+  "datasets": {
+    "Levine_32": {
+      "input_mb": 19.7073974609375,
+      "knn": 82.75,
+      "build_graph": 117.90625,
+      "find_communities(leiden='fast')": 173.375,
+      "find_communities(leiden='igraph')": 312.203125,
+      "find_communities_multiscale": 568.578125
+    },
+    "Mosmann_rare": {
+      "input_mb": 22.685623168945312,
+      "knn": 122.09375,
+      "build_graph": 247.609375,
+      "find_communities(leiden='fast')": 373.71875,
+      "find_communities(leiden='igraph')": 606.28125,
+      "find_communities_multiscale": 1089.96875
+    },
+    "dense_100k_x_2000": {
+      "input_mb": 762.939453125,
+      "knn": 843.109375,
+      "build_graph": 864.09375,
+      "find_communities(leiden='fast')": 935.765625,
+      "find_communities(leiden='igraph')": 1021.28125
+    }
+  },
+  "environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "python": "3.9.6",
+    "numpy": "1.26.4",
+    "costal_plus": "2.0.0",
+    "threads": 8,
+    "default_matmul": "accelerate",
+    "l2_bytes_per_thread": 4194304,
+    "tile_budget_bytes": 2097152,
+    "veclib_maximum_threads": null,
+    "build": "cpython-39-darwin"
+  }
+}

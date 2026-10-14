@@ -13,8 +13,8 @@ scRNA-seq: an exact cosine kNN graph, Tanimoto edge weights, Leiden community de
   of the paper's datasets it finds the same neighbors as 1.0 for 100% of cells, and at the same
   Leiden seed the same clusters on six; on the other three, 1.0's float32 rounding of the edge
   weights (≤ 6×10⁻⁷) sends Leiden elsewhere, at the same accuracy.
-- **Speed.** Graph construction is 13–208× faster than 1.0's own path. With igraph's Leiden
-  (`leiden="fast"`) the whole run is 17–197× faster, at the same accuracy.
+- **Speed.** Graph construction is 13–208× faster than 1.0's own path. With CosTaL's own Leiden,
+  written in Rust (`leiden="fast"`), the whole run is 23–420× faster, at the same accuracy.
 - **Every platform.** macOS, Linux and Windows, with no external binary and no temporary files.
 - **1.0 code keeps working.** The same names, arguments and import paths.
 - **A command line** for clustering a file without writing code.
@@ -83,14 +83,17 @@ Measured end to end on one Apple M1 Pro: kNN, weights, graph, and Leiden at the 
 
 | Dataset | Cells × features | 1.0 | 2.0 | 2.0, `leiden="fast"` | Graph only | Same neighbors |
 |---|---|---:|---:|---:|---:|---:|
-| GSE84133 (pancreas) | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.21 s (195×) | 208× | 100% |
-| Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 2.3 s (39×) | 39× | 100% |
-| Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 5.0 s (60×) | 45× | 100% |
-| Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 61 s (30×) | 73× | 100% |
+| GSE84133 (pancreas) | 3,605 × 2,000 | 41 s | 1.0 s (40×) | 0.098 s (420×) | 208× | 100% |
+| Samusik_01 | 86,864 × 39 | 91 s | 32 s (2.9×) | 0.89 s (102×) | 39× | 100% |
+| Levine_32 | 161,443 × 32 | 300 s | 69 s (4.3×) | 2.3 s (128×) | 45× | 100% |
+| Mosmann_rare | 396,460 × 15 | 1,826 s | 587 s (3.1×) | 11.5 s (159×) | 73× | 100% |
 
 With the paper's Leiden settings, leidenalg itself takes 80–97% of 2.0's time; `leiden="fast"`
-removes that bottleneck. Accuracy against the labels is the same within Leiden's run-to-run noise in
-every case.
+removes that bottleneck. It is CosTaL's own implementation of the same Leiden algorithm: 2.6–3.3×
+faster than igraph's, at the same modularity and accuracy over 20 seeds, and it gives the same
+clusters for a seed on every platform and at any thread count
+([docs/07](docs/07_leiden_implementations.md)). Accuracy against the labels is the same within
+Leiden's run-to-run noise in every case.
 
 ## Documentation
 

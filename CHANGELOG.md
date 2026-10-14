@@ -24,11 +24,25 @@ arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `
 - Tanimoto edge weights from the raw row norms and the original's fuzzy-union symmetrization, edge for
   edge identical to the original's scipy pipeline.
 - `find_communities()`: the whole method; with no options, the published CosTaL (leidenalg
-  RBConfiguration, resolution 0.8, 10 iterations). `leiden="fast"` uses igraph's native Leiden.
+  RBConfiguration, resolution 0.8, 10 iterations).
 - `preprocess()`: the original `pp()` for mass, flow and spectral cytometry and scRNA-seq; reports the
   cells scRNA-seq filtering drops (the original silently misaligned labels when it dropped one).
 - Reproduces the paper: on its scRNA-seq datasets the preprocessing matches the paper's Table 2, and
   neighbors and Leiden partitions are identical to the original code's (docs/03 §10).
+
+### CosTaL's own Leiden
+
+- `leiden="fast"`: the Leiden algorithm (Traag, Waltman & van Eck 2019) implemented in Rust on
+  CosTaL's graph, following the paper and the authors' reference implementation (docs/07 §5).
+  - It optimizes the same objective as leidenalg and igraph.
+  - Over 20 seeds on the paper's nine datasets it matches igraph's modularity, ARI and
+    per-population F1, 2.6–3.3x faster per run, with no igraph graph to build.
+  - The same seed gives the same partition on every platform and at any `n_threads`.
+  - It is the default of `find_communities_multiscale`, whose 44 runs now run in parallel on one
+    graph: 6.6–9x faster.
+- `leiden="igraph"` keeps igraph's implementation. `costal info` prints the leidenalg and igraph
+  versions, since a seed reproduces a partition only within one leidenalg version (0.12.0 changed
+  its refinement, docs/07 §2.3).
 
 ### Beyond the paper (all opt-in)
 
@@ -59,7 +73,7 @@ arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `
 ### Speed and memory
 
 - 13–208x faster graph construction than the original's own kNN path on the paper's datasets, at
-  identical neighbors; 17–197x end to end with `leiden="fast"` at the same accuracy (docs/03 §10.4).
+  identical neighbors; 23–420x end to end with `leiden="fast"` at the same accuracy (docs/03 §10.4).
 - Peak memory about twice the input matrix for the kNN; input diagnostics stream in 8 MB chunks.
 
 ### Differences from 1.0

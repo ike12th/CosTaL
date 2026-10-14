@@ -6,7 +6,10 @@ Per dataset (paper preset, k = 10), on an otherwise idle machine:
   then the original `map_tani` and `build_graph`) + leidenalg at the paper's settings (resolution
   0.8, 10 iterations). The Linux `p_knng` path can't run on macOS; docs/02 §1.1 has its numbers.
 - CosTaL+ `leiden="paper"`: exact kNN + Tanimoto + fuzzy union in Rust, then the same leidenalg call.
-- CosTaL+ `leiden="fast"`: the same graph, igraph's native Leiden with 2 iterations (docs/03 §9.1).
+- CosTaL+ with igraph's native Leiden, 2 iterations, on the same graph (docs/03 §9.1): the
+  `leiden="fast"` of the first runs, now `leiden="igraph"` (keys `costal_plus_fast*`).
+- `leiden="fast"`, CosTaL's own Leiden (docs/07 §5): the public `find_communities` call timed whole
+  (kNN, weights, fuzzy union, Leiden; no igraph graph), key `fast_native`.
 
 Equal results are checked in the same run, not assumed: the share of cells whose neighbor sets are
 identical, and the ARI between the original's and CosTaL+'s partitions at the same Leiden seed (1.0 =
@@ -18,6 +21,8 @@ of 3 runs; larger ones run once (the original kNN alone takes minutes). Levine_3
 (docs/02 addendum).
 
 Usage: python bench/timing_small.py [dataset ...]
+       python bench/timing_small.py --fast-only [dataset ...]   (only `fast_native`, merged into the
+                                                              existing results)
 Output: bench/out/timing_small.json
 """
 
@@ -57,6 +62,18 @@ def leiden_fast(graph) -> tuple[float, np.ndarray]:
     m = graph.community_leiden(objective_function="modularity", weights="weight", resolution=0.8,
                                n_iterations=2).membership
     return time.perf_counter() - t0, np.asarray(m)
+
+
+def fast_native(x: np.ndarray, labels: np.ndarray, rare: int | None) -> dict:
+    """`find_communities(leiden="fast")` end to end, best of 3 under 100k cells."""
+    import costal as cp
+
+    best, m = float("inf"), None
+    for _ in range(1 if x.shape[0] > 100_000 else 3):
+        t0 = time.perf_counter()
+        m = cp.find_communities(x, K, leiden="fast", seed=0)
+        best = min(best, time.perf_counter() - t0)
+    return {"end_to_end_s": best, "accuracy": accuracy(labels, m, rare)}
 
 
 def matrix(name: str) -> tuple[np.ndarray, np.ndarray, float, int | None]:
@@ -111,6 +128,8 @@ def run(name: str) -> dict:
            "speedup_graph": (best["original_knn_s"] + best["original_weights_graph_s"]) / best["costal_plus_graph_s"],
            "speedup_end_to_end_paper": total["original"] / total["costal_plus_paper"],
            "speedup_end_to_end_fast": total["original"] / total["costal_plus_fast"]}
+    out["fast_native"] = fast_native(x, labels, rare)
+    out["fast_native"]["speedup_end_to_end"] = total["original"] / out["fast_native"]["end_to_end_s"]
     print(f"{name:<12} {x.shape[0]:>7} x {x.shape[1]:<4}  original {total['original']:8.2f} s  "
           f"CosTaL+ paper {total['costal_plus_paper']:7.2f} s ({out['speedup_end_to_end_paper']:5.1f}x)  "
           f"fast {total['costal_plus_fast']:6.2f} s ({out['speedup_end_to_end_fast']:6.1f}x)  "
@@ -120,14 +139,26 @@ def run(name: str) -> dict:
     return out
 
 
-def main(names: list[str]) -> None:
+def main(names: list[str], fast_only: bool) -> None:
     out = json.loads(OUT.read_text()) if OUT.exists() else {"datasets": {}}
     for name in names:
-        out["datasets"][name] = run(name)
+        if fast_only:
+            entry = out["datasets"][name]
+            x, labels, _, rare = matrix(name)
+            entry["fast_native"] = fast_native(x, labels, rare)
+            entry["fast_native"]["speedup_end_to_end"] = (entry["end_to_end_s"]["original"]
+                                                          / entry["fast_native"]["end_to_end_s"])
+            print(f"{name:<12} fast (native) {entry['fast_native']['end_to_end_s']:7.3f} s "
+                  f"({entry['fast_native']['speedup_end_to_end']:6.1f}x)  {entry['accuracy_metric']} "
+                  f"{entry['fast_native']['accuracy']:.3f}", flush=True)
+        else:
+            out["datasets"][name] = run(name)
         out.update(environment=environment(), k=K)
         OUT.write_text(json.dumps(out, indent=2))
     print(f"-> {OUT}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:] or NAMES[1:] + ["Nilsson_rare", "Samusik_01", "Levine_13", "Levine_32", "Mosmann_rare"])
+    args = [a for a in sys.argv[1:] if a != "--fast-only"]
+    main(args or NAMES[1:] + ["Nilsson_rare", "Samusik_01", "Levine_13", "Levine_32", "Mosmann_rare"],
+         fast_only="--fast-only" in sys.argv)

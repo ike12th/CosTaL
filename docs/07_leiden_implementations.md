@@ -39,7 +39,7 @@ edges. Resolution 0.8, seeds 0 and 1.
 Accuracy against the gated labels (ARI, labeled cells): leidenalg 0.755–0.776 at both 2 and 10
 iterations; igraph 0.758–0.771 at both. Two consequences:
 
-- **At equal iterations igraph is about 12× faster than leidenalg.** Most of `leiden="fast"`'s speed
+- **At equal iterations igraph is about 12× faster than leidenalg.** Most of igraph's speed
   comes from the implementation, not from running 2 iterations instead of 10 (that accounts for
   about 3×).
 - **leidenalg with `n_iterations=2` is 3× faster than the paper's 10 at the same accuracy.** It is
@@ -173,7 +173,9 @@ and count but not its external edge weight (`IG:src/community/leiden.c:414-420`)
 zeroes both (`LocalMergingAlgorithm.java`, "Remove the currently selected node from its current
 cluster"). If the vertex then stays, its external weight is added again and ends up doubled. That
 makes later well-connectedness tests on that sub-cluster easier to pass than the paper intends. A
-Leiden for CosTaL follows the reference here. This could be reported to igraph; nothing has been posted.
+Leiden for CosTaL follows the reference here. In practice it changes no partition on Nilsson_rare or
+Levine_32 (§5.2): a node allowed to move has already passed the same test that a target must pass.
+It could still be reported to igraph; nothing has been posted.
 
 ---
 
@@ -196,84 +198,174 @@ differ. On Levine_32 their accuracy is the same (§1).
 
 ---
 
-## 5. A native Leiden for CosTaL: proposed design (not started)
+## 5. CosTaL's own Leiden: `leiden="fast"` (implemented 2026-10-14)
 
-Goal: `leiden="fast"` and multiscale faster than igraph, at igraph's accuracy, with the same seed
-giving the same partition on every platform and at every thread count. `leiden="paper"` keeps calling
-leidenalg: bit-identical leidenalg partitions would require reproducing its RNG, candidate order,
-renumbering and multigraph aggregation, which means following its GPL code line by line.
+`crates/costal-core/src/leiden.rs`; `leiden="fast"` in `find_communities` and (the default)
+`find_communities_multiscale`. igraph's implementation stays available as `leiden="igraph"`, and
+`leiden="paper"` keeps calling leidenalg: bit-identical leidenalg partitions would require
+reproducing its RNG, candidate order, renumbering and multigraph aggregation, i.e. following its GPL
+code line by line.
 
-**Data.**
-- Read the fuzzy-union output directly as a CSR built once per run: u32 neighbor, f32 weight
-  (Tanimoto ∈ (0, 1]), f64 accumulators. No igraph object, no Python lists.
-- Drop zero-weight edges. A strength-0 vertex can otherwise be merged at random during refinement.
-- Reject a total weight of 0, non-finite weights and self-loops with a clear error.
+### 5.1 Design
 
-**Local moving.**
-- Sequential FIFO queue over a shuffled order. Candidate clusters found with a dense accumulator, a
-  touched list and an epoch-stamped array (no clearing pass). One scan of the adjacency per visit.
-- An empty cluster is always a candidate, and a vertex moves only on a strictly positive gain.
-- RNG: a counter-based or small-state generator in Rust (e.g. PCG or Xoshiro), seeded from
-  (seed, iteration, level). No Python calls.
+**Algorithm.** The paper's Algorithm A.2, with the details the paper leaves open taken from the
+authors' MIT-licensed Java reference (`FastLocalMovingAlgorithm`, `LocalMergingAlgorithm`,
+`LeidenAlgorithm`):
+- modularity as CPM on node weights k_i (strength) with γ/2m, so γ means what it means in leidenalg
+  and igraph;
+- fast local moving from a queue in random order, with one empty cluster always a candidate and
+  moves only on a strictly positive gain;
+- refinement inside each cluster from singletons, with the node and target well-connectedness tests
+  and sampling ∝ exp(gain/β), β = 0.01 in edge-weight units as in igraph;
+- aggregation on the refined partition, the next level starting from the unrefined one, and the
+  unrefined partition aggregated when the refinement merges nothing;
+- `n_iterations=k` runs k iterations; a negative value runs until an iteration moves nothing, capped
+  at 1,000.
 
-**Refinement (paper and Java reference).**
-- Well-connectedness tests for both the vertex and its target, and sampling ∝ exp((ΔH − ΔH_max)/β).
-  Shifting by the maximum avoids overflow and keeps the sampling defined at every level, where igraph
-  falls back to greedy.
-- The emptied singleton's external weight is reset, as in the reference.
-- Scan only in-cluster neighbors: one pass gathers them per cluster.
-- Update the external weight from the accumulator, not with a third pass.
-- **Parallel and still deterministic.** Clusters are independent given the unrefined partition. Each
-  is refined with its own RNG stream derived from (seed, iteration, level, cluster id), and refined
-  ids are numbered by a prefix sum in cluster order. The result does not depend on the thread count.
+**Data.** The fuzzy-union edge list becomes one CSR (u32 neighbors, f64 weights) with no igraph
+object and no Python lists. Zero-weight edges are dropped; self-loops, out-of-range nodes and
+negative or non-finite weights are errors. A graph without edges returns singletons.
 
-**Aggregation.**
-- Counting sort of the vertices by refined cluster, then each aggregate row filled with a dense
-  accumulator straight into the next level's CSR.
-- No edge-list sort, no re-indexing, parallel by rows, deterministic.
-- Node weight = Σ strength. The internal weight is dropped (modularity does not need it).
+**Determinism.** The same seed gives the same partition at any thread count and on every platform:
+- local moving is sequential, with xoshiro256** seeded from (seed, iteration, level);
+- the clusters are refined in parallel, each with its own stream (seed, iteration, level, cluster),
+  and refined ids are numbered by (cluster, sub-cluster);
+- aggregate rows are built independently and sum duplicate edges in member order;
+- `exp` is our own polynomial, because `libm` results can differ in the last bit.
 
-**Iterations.**
-- `n_iterations=k` runs exactly k iterations; a negative value runs until no vertex moves.
-- No quality computation unless asked for.
-- Canonical labels: first appearance in the original vertex order.
+**Many runs.** `leiden_many_into` runs the multiscale ensemble (11 resolutions × 4 seeds) on one
+shared graph:
+- one task per thread takes the runs in turn, each run sequential inside;
+- each run writes its membership straight into its row of the output;
+- levels under 5,000 nodes are always sequential (rayon's dispatch costs about 1 ms per run on a
+  500-node graph).
 
-**Many runs.**
-- `find_communities_multiscale`'s 11 resolutions × 4 seeds run as parallel jobs on one shared,
-  read-only CSR, with the GIL released.
-- This is not possible with python-igraph (GIL held, Python RNG) without copying the graph into
-  separate processes.
+**Memory.** Every buffer lives in a per-thread `Workspace` that only grows, and is reused across
+levels, iterations and runs:
+- **Why reuse.** Allocating per level fragmented the heap when runs at different resolutions
+  followed each other. On Levine_32, 44 runs on one thread peaked at 618 MB above the edge list,
+  growing about 11 MB per run. 44 identical runs did not grow, so this was fragmentation, not a
+  leak.
+- **Exact sizes.** Aggregate graphs are counted before they are filled, so they are allocated at
+  their exact size; grown by doubling, the reused graphs kept up to twice what they needed.
+- **No subgraph copy.** The refinement reads each cluster's edges in place rather than copying
+  the cluster's subgraph, which at low resolutions is nearly the whole graph, once per thread.
+- **Result.** Peak above the edge list for the 44 runs on Levine_32 is 109 MB on 1 thread, 267 MB
+  on 4 and 584 MB on 10, about 48 MB per concurrent run. `n_threads` trades time for memory.
+- **A budget.** On large graphs fewer runs than threads run at once, so that their estimated
+  working sets (24 bytes per CSR entry plus 64 per node, above the measured 48 MB on Levine_32)
+  stay within 2 GiB. Levine_32 and Mosmann_rare are not capped at 10 threads; a million cells
+  would run about four at once.
+- **Results unchanged.** None of this changes a result: the digests of `tests/test_leiden_native.py`
+  are the same before and after.
 
-**Not planned:** parallel local moving (GVE-Leiden style). It changes the trajectory with the thread
-schedule, and CosTaL's graphs are small enough that the sequential version is not the bottleneck.
+**Not done:** parallel local moving. leiden-rs's colouring scheme changes the algorithm (§6.2); a
+speculative window (evaluate about 1,000 queued nodes in parallel, commit them in queue order after
+re-validating) would reproduce the sequential result exactly, if profiling ever shows local moving
+dominating.
 
-### 5.1 Expected gains (estimates, to be measured)
+Changes made after reading the other Rust implementations (§6): an emptied cluster's weight is reset
+to exactly 0 (rounding residue let nodes hop into "empty" clusters, which slowed `n_iterations<0`:
+43–47 iterations to converge on Levine_32 before, 29–33 after); the iteration cap went from 10,000 to
+1,000 and a `converged` flag was added; the refinement makes one pass over each cluster's own edges;
+`Csr` is only built through its validating constructor; the sampling never falls on an ineligible
+candidate.
 
-| | igraph today (Levine_32) | Native, estimated |
-|---|---:|---:|
-| Graph hand-off | 0.40 s (+ ≈ 0.5 s first import) | ≈ 0 |
-| Leiden, 2 iterations | 1.5 s | 0.3–0.8 s (layout, no rebuilds; refinement in parallel) |
-| `leiden="fast"` end to end | ≈ 4.2–4.7 s | ≈ 2.7–3.2 s (the kNN's 2.3 s stays) |
-| Multiscale (44 runs + carving) | 110 s | ≈ 15–25 s (runs in parallel on 8 cores) |
+### 5.2 Validation
 
-The single-run gain is modest because the kNN is now about half of the run. The multiscale gain is
-the main reason to do this.
+**Rust unit tests** (`leiden.rs`, 17): planted partitions, a ring of cliques, two triangles; every
+cluster connected and no two adjacent clusters gaining from a merge after every run (Leiden's
+γ-connectivity and γ-separation); quality non-decreasing with iterations; after `n_iterations<0`, no
+single node gaining from a move; the best of 10 seeds reaching the exact optimum (all 4,140
+partitions of 8 nodes) on at least 90% of 40 random graphs; scaling weights and β by 4 leaving the
+partition bit-identical; identical partitions at 1, 2, 3 and 8 threads on a 10,000-node weighted
+graph; `leiden_many` equal to single runs; edge cases.
 
-### 5.2 Validation before it can become the default
+**Python tests** (`tests/test_leiden_native.py`): modularity equal to igraph's to 1e-12; optimization
+at least as good as igraph's over 10 seeds; the public API; and two fixed partitions checked by
+digest, so that the wheel tests on macOS, Linux and Windows catch any platform difference.
 
-1. **Quality.** On the 9 datasets of docs/03 §10, with 20 seeds each: modularity distribution at
-   least igraph's, and ARI and per-population F1 against the labels within igraph's seed-to-seed
-   spread.
-2. **Guarantees.** Every cluster is connected (the Leiden guarantee). The null check of docs/05 §3.3
-   still gives one cluster.
-3. **Determinism.** Identical labels for 1, 2, 8 and 16 threads, and on macOS, Linux and Windows
-   (as for the kNN, docs/06).
-4. **Edge cases.** Isolated vertices, disconnected components, uniform weights, n = 1–3, a graph
-   with a single edge.
-5. **Speed and memory.** Faster than igraph per iteration on every dataset; peak memory no more than
-   the CSR plus O(n).
+**Against igraph on the paper's nine datasets** (`bench/leiden_native.py`,
+`bench/out/leiden_native.json`; resolution 0.8, 2 iterations, 20 seeds each; times exclude
+igraph's graph conversion, which costs another 0.4 s on Levine_32):
 
-Rollout:
-- Ship as a new `leiden=` option first.
-- Make it the default for `"fast"` and multiscale only after (1)–(5) pass.
-- `"paper"` stays leidenalg.
+| Dataset | Cells | igraph | native | Modularity igraph / native | ARI igraph / native |
+|---|---:|---:|---:|---|---|
+| GSE84133 | 3,605 | 0.009 s | 0.006 s | 0.8128 / 0.8128 | 0.854 / 0.857 |
+| GSE74672 | 2,881 | 0.007 s | 0.005 s | 0.8183 / 0.8180 | 0.475 / 0.463 |
+| GSE81861, E-MTAB-3321 | 561, 124 | ≤ 1 ms | ≤ 6 ms | identical | identical |
+| Nilsson_rare | 44,140 | 0.200 s | 0.077 s | 0.8627 / 0.8610 | 0.001 / 0.001 |
+| Samusik_01 | 86,864 | 0.731 s | 0.222 s | 0.8685 / 0.8683 | 0.837 / 0.837 |
+| Levine_32 | 161,443 | 1.463 s | 0.521 s | 0.8664 / 0.8661 | 0.775 / 0.781 |
+| Levine_13 | 167,044 | 1.402 s | 0.528 s | 0.8624 / 0.8619 | 0.818 / 0.804 |
+| Mosmann_rare | 396,460 | 5.760 s | 2.174 s | 0.8369 / 0.8365 | 0.000 / 0.000 |
+
+- **Speed:** 2.6–3.3× igraph per run on the cytometry sets.
+- **Quality:** the native modularity came out slightly lower on 7 of 7 sets with a difference
+  (0.0001–0.0017, each within one seed-to-seed SD). On fresh seeds the gap is noise: 100 seeds on
+  Nilsson_rare give −0.00008 ± 0.00034 (Mann–Whitney p = 0.60), and 40 seeds on Levine_32 give
+  −0.00016 ± 0.00045 (p = 0.72).
+- Two candidate causes were ruled out by switching them on in a copy of the code. igraph's
+  unreset external weight (§3.4) changed no partition at all on Nilsson_rare or Levine_32. igraph's
+  greedy choice when exp overflows moved the mean modularity by at most 0.0005.
+- ARI and per-population F1 match within the seed spread on every set.
+- The two smallest sets take a few milliseconds either way. With levels under 5,000 nodes
+  sequential, a 500-node graph takes 0.6 ms.
+
+**Multiscale** (one ensemble each; `multiscale_igraph` / `multiscale_native` in the same JSON): 6.6–9×
+faster (Levine_32 68 s → 8.8 s, Levine_13 78 s → 11 s, Mosmann_rare 268 s → 41 s), with the same
+accuracy. The one large difference in a single run (Nilsson_rare, HSC F1 0.325 native vs 0.506
+igraph) is seed noise. Over five disjoint 4-seed sets both swing widely: native 0.33–0.48 (mean
+0.414), igraph 0.35–0.51 (mean 0.432). On Levine_32 the two agree (0.616 vs 0.618). The null check of
+docs/05 §3.3 still gives one cluster.
+
+**End to end** (`find_communities(leiden="fast")`, `bench/timing_small.py --fast-only`,
+`fast_native` in `bench/out/timing_small.json`): Levine_32 2.3 s (5.0 s with igraph), Levine_13
+2.5 s (5.8 s), Samusik_01 0.89 s (2.3 s), Nilsson_rare 0.29 s (0.90 s), Mosmann_rare 11.5 s (61 s).
+Against CosTaL 1.0 (docs/03 §10.4) that is 23–420× instead of 17–197×. On the two smallest sets the
+total is a few to tens of milliseconds and the kNN's millisecond jitter decides the ratio.
+
+---
+
+## 6. Other Rust implementations (read 2026-10-14)
+
+Read from their published sources (all permissively licensed), to learn from their mistakes. None
+is closer to the paper than §5. What they contributed is mostly a list of failure modes that §5.2's
+tests now guard against.
+
+### 6.1 single-clustering (SingleRust, BSD-3-Clause, 0.7.0)
+
+- Single-cell oriented: CSR with u32 ids and f32 weights.
+- Its 0.7.0 rewrite fixed six bugs: self-loop strength counted once on aggregates, γ doubled (/4m
+  instead of /2m), candidates taken from a `HashSet` (non-deterministic), the singleton-only rule on
+  the wrong statement (disconnected clusters), O(n) work per move, and ignored `n_iterations`.
+- Its refinement is not the paper's: no well-connectedness tests, the node's own singleton never
+  sampled, θ scaled by the mean weight.
+- Measured by its own open PR: 1.33× igraph single-threaded, 1.55–1.70× with parallel refinement.
+- Its strength is verification: leidenalg fixtures committed as JSON, brute force on 6–9-node
+  graphs, random property tests, and scale and relabelling invariance. §5.2 adopted the brute-force,
+  scaling and property tests.
+
+### 6.2 leiden-rs (MIT or Apache-2.0, 0.8.1)
+
+- Parallel local moving by graph colouring. Each colour class is evaluated against frozen totals and
+  committed without re-checking. It oscillated and is now capped at 100 rounds; it has no queue and
+  no empty-cluster move.
+- Its parallel aggregation merges per-thread hash maps, so the floating-point sums depend on
+  scheduling. Its determinism tests use unit weights, which hides this.
+- Its refinement is greedy and lets any node move, so the connectivity guarantee its README claims
+  does not hold.
+- No speed numbers.
+
+### 6.3 Others
+
+- **fa-leiden-cd:** Louvain plus a split of disconnected communities, with full-modularity
+  recomputation per move.
+- **graphrs:**
+  - the RNG cannot be seeded;
+  - a separate γ = 0.05 is hard-coded for the well-connectedness test;
+  - sampling is nearly uniform;
+  - an unshifted `exp` can overflow and panic.
+- **hit-leiden:** incremental Leiden for dynamic graphs (Lin et al., arXiv:2601.08554). It does not
+  carry over to a resolution sweep, where every node's gain changes. The one idea that does is a
+  warm start, which `leiden::leiden_from` provides.

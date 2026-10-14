@@ -156,9 +156,9 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--select", default="cosine", choices=["cosine", "tanimoto"], help="neighbor selection")
     c.add_argument("--weight", default="tanimoto", choices=["tanimoto", "cosine", "jaccard"], help="edge weights")
     c.add_argument("--resolution", type=float, default=0.8, help="Leiden resolution (default 0.8)")
-    c.add_argument("--leiden", choices=["paper", "fast"],
-                   help="'paper': leidenalg as published (default); 'fast': igraph's native Leiden "
-                        "(the default with --multiscale)")
+    c.add_argument("--leiden", choices=["paper", "fast", "igraph"],
+                   help="'paper': leidenalg as published (default); 'fast': CosTaL's own Leiden "
+                        "(the default with --multiscale); 'igraph': igraph's Leiden")
     c.add_argument("--seed", type=int, help="Leiden seed")
     c.add_argument("--multiscale", action="store_true",
                    help="multi-resolution clustering that keeps rare populations (docs/05 §2.3)")

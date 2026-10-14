@@ -35,7 +35,7 @@ def _ensemble(graph, resolutions, seeds, leiden: str, n_iterations: int) -> np.n
     out = np.empty((len(resolutions), len(seeds), graph.vcount()), dtype=np.int32)
     for r, res in enumerate(resolutions):
         for s, seed in enumerate(seeds):
-            if leiden == "fast":
+            if leiden == "igraph":
                 random.seed(seed)
                 m = graph.community_leiden(objective_function="modularity", weights="weight",
                                            resolution=res, n_iterations=n_iterations).membership
@@ -138,20 +138,21 @@ def find_communities_multiscale(
             Lower carves less.
         resolutions: Leiden resolutions, ascending; default 0.1 … 3.2 with ratio √2.
         seeds: Leiden seeds per resolution, or how many (``0 … seeds−1``).
-        leiden: ``"fast"`` (igraph's native Leiden, default) or ``"paper"`` (leidenalg).
+        leiden: ``"fast"`` (CosTaL's own Leiden, default; runs the whole ensemble in parallel),
+            ``"paper"`` (leidenalg) or ``"igraph"`` (igraph's Leiden).
         n_iterations: Leiden iterations per run (2 reproduces the paper's 10, docs/03 §9.1).
         min_size: smallest candidate cluster; default ``2 * k``.
         return_info: also return a dict with the carved clusters and the ensemble's settings.
 
     Returns:
         ``(n,)`` int64 labels, and the info dict if ``return_info``. Costs one kNN plus
-        ``len(resolutions) × seeds`` Leiden runs (about 80 s for 161k cells with ``"fast"``).
+        ``len(resolutions) × seeds`` Leiden runs (about 9 s for 161k cells with ``"fast"``).
     """
     if compat == "paper":
         raise ValueError("compat='paper' pins the published single-resolution method; "
                          "find_communities_multiscale is not part of it (docs/05 §2.3)")
-    if leiden not in ("fast", "paper"):
-        raise ValueError(f"leiden must be 'fast' or 'paper', got {leiden!r}")
+    if leiden not in ("fast", "paper", "igraph"):
+        raise ValueError(f"leiden must be 'fast', 'paper' or 'igraph', got {leiden!r}")
     if not 0 < phi_max < 1:
         raise ValueError(f"phi_max must be in (0, 1), got {phi_max}")
     resolutions = tuple(RESOLUTIONS if resolutions is None else resolutions)
@@ -159,21 +160,27 @@ def find_communities_multiscale(
         raise ValueError("resolutions must be ascending, at least two")
     seeds = tuple(range(seeds)) if isinstance(seeds, int) else tuple(seeds)
     min_size = 2 * k if min_size is None else int(min_size)
-    try:
-        import igraph  # noqa: F401  (fail before the expensive kNN, not after)
-    except ImportError as exc:  # pragma: no cover - depends on the environment
-        raise ImportError("find_communities_multiscale needs igraph: pip install igraph") from exc
+    if leiden != "fast":
+        try:
+            import igraph  # noqa: F401  (fail before the expensive kNN, not after)
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise ImportError(f"leiden={leiden!r} needs igraph: pip install igraph") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     rows, cols, w = _ext._fuzzy_union(g.idx, reweight(g, weight))
     n = g.n
     del g
-    graph = _igraph(n, rows, cols, w)
+    if leiden == "fast":
+        # Every (resolution, seed) run in parallel on one graph, each run deterministic
+        ms = _ext._leiden_many(n, rows, cols, w, resolutions=[float(r) for r in resolutions],
+                               seeds=[int(s) % (1 << 64) for s in seeds], n_iterations=n_iterations,
+                               n_threads=n_threads).reshape(len(resolutions), len(seeds), n)
+    else:
+        graph = _igraph(n, rows, cols, w)
+        ms = _ensemble(graph, resolutions, seeds, leiden, n_iterations)
+        del graph
     adjacency = _adjacency(n, rows, cols, w)
     del rows, cols, w
-
-    ms = _ensemble(graph, resolutions, seeds, leiden, n_iterations)
-    del graph
     labels, carved = _carve(ms, *adjacency, phi_max, min_size, resolutions)
     if not return_info:
         return labels

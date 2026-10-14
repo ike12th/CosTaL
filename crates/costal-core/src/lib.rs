@@ -6,11 +6,13 @@
 //! - [`knn`]: exact kNN (fused blocked coarse selection + f64 rescoring, docs/03 §2, docs/06 §1)
 //! - [`weight`]: edge weights (tanimoto / cosine / jaccard)
 //! - [`graph`]: the original's fuzzy-union symmetrization
+//! - [`leiden`]: Leiden community detection, deterministic at any thread count (docs/07 §5)
 //! - [`matmul`], [`cache`]: tile matmul backends and cache detection (docs/06 §2–§3)
 
 pub mod cache;
 pub mod graph;
 pub mod knn;
+pub mod leiden;
 pub mod matmul;
 pub mod weight;
 

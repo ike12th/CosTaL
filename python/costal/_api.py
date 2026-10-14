@@ -324,10 +324,22 @@ def build_graph(
 _LEIDEN = {
     # The published CosTaL: leidenalg, RBConfiguration, 10 iterations (docs/04 §0.0 item 5)
     "paper": 10,
-    # igraph's native Leiden on the same objective: 38x faster on Levine, same accuracy against the
-    # gating labels, but a different implementation whose partitions differ more (docs/03 §9.1)
+    # CosTaL's own Leiden in Rust (docs/07 §5): the paper's algorithm on the same objective, run on
+    # the graph as built; deterministic for a seed on every platform and at any thread count. Same
+    # modularity and accuracy as igraph's, 2.6-3.3x faster than it on the cytometry sets
     "fast": 2,
+    # igraph's native Leiden on the same objective (docs/03 §9.1), the "fast" of earlier drafts
+    "igraph": 2,
 }
+
+
+def _seed64(seed: int | None) -> int:
+    """A Leiden seed for the native implementation: ``seed`` modulo 2^64, or a random one."""
+    if seed is None:
+        import secrets
+
+        return secrets.randbits(64)
+    return int(seed) % (1 << 64)
 
 
 # The keyword arguments of CosTaL 1.0's find_communities (docs/user_guide.md §11)
@@ -357,12 +369,14 @@ def find_communities(
     resolution 0.8 with 10 iterations.
 
     Args:
-        leiden: ``"paper"`` uses leidenalg exactly as published; ``"fast"`` uses igraph's native
-            Leiden on the same modularity objective (docs/03 §9.1).
-        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 for ``"fast"``.
+        leiden: ``"paper"`` uses leidenalg exactly as published; ``"fast"`` uses CosTaL's own Leiden,
+            written in Rust, on the same modularity objective (docs/07 §5); ``"igraph"`` uses
+            igraph's.
+        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 otherwise.
             Negative runs until the partition is stable.
-        seed: Leiden seed. For ``"fast"`` it seeds Python's ``random`` module, which python-igraph
-            draws from.
+        seed: Leiden seed. With ``"fast"`` the same seed gives the same clusters on every platform
+            and at any ``n_threads``; with ``"igraph"`` it seeds Python's ``random`` module, which
+            python-igraph draws from.
         compat: ``"paper"`` refuses any setting that departs from the published method.
 
     CosTaL 1.0 calls keep working: with its arguments (``pp_method``, ``method``, ``nbr_num``,
@@ -413,16 +427,18 @@ def _find_communities(
     resolution 0.8 with 10 iterations.
 
     Args:
-        leiden: ``"paper"`` uses leidenalg exactly as the original; ``"fast"`` uses igraph's native
-            Leiden on the same modularity objective (docs/03 §9.1).
-        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 for ``"fast"``.
+        leiden: ``"paper"`` uses leidenalg exactly as the original; ``"fast"`` uses CosTaL's own Leiden,
+            written in Rust, on the same modularity objective (docs/07 §5); ``"igraph"`` uses
+            igraph's.
+        n_iterations: Leiden iterations; ``None`` means 10 for ``"paper"`` and 2 otherwise.
             Negative runs until the partition is stable.
-        seed: Leiden seed. For ``"fast"`` it seeds Python's ``random`` module, which python-igraph
-            draws from.
+        seed: Leiden seed. With ``"fast"`` the same seed gives the same clusters on every platform
+            and at any ``n_threads``; with ``"igraph"`` it seeds Python's ``random`` module, which
+            python-igraph draws from.
         compat: ``"paper"`` refuses any setting that departs from the published method.
 
-    Uses ``igraph``, and ``leidenalg`` for ``"paper"`` (both installed with CosTaL; on Windows
-    on Arm leidenalg has no wheels yet, so use ``leiden="fast"`` there).
+    ``"paper"`` uses ``leidenalg`` and ``igraph``, and ``"igraph"`` uses ``igraph`` (both installed
+    with CosTaL; on Windows on Arm leidenalg has no wheels yet). ``"fast"`` needs neither.
     """
     if leiden not in _LEIDEN:
         raise ValueError(f"leiden must be one of {tuple(_LEIDEN)}, got {leiden!r}")
@@ -435,15 +451,20 @@ def _find_communities(
             "compat='paper' pins cosine selection, Tanimoto weights and leidenalg with "
             "resolution 0.8 and 10 iterations (docs/04 §0.0)"
         )
-    try:
-        import igraph  # noqa: F401  (fail before the expensive kNN, not after)
-    except ImportError as exc:  # pragma: no cover - depends on the environment
-        raise ImportError("find_communities needs igraph: pip install igraph") from exc
+    if leiden != "fast":
+        try:
+            import igraph  # noqa: F401  (fail before the expensive kNN, not after)
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise ImportError(f"leiden={leiden!r} needs igraph: pip install igraph") from exc
 
     g = knn(X, k, select=select, normalize=normalize, compat=compat, n_threads=n_threads)
     w = reweight(g, weight)
     rows, cols, ew = _ext._fuzzy_union(g.idx, w)
     del w
+    if leiden == "fast":
+        membership = _ext._leiden(g.n, rows, cols, ew, resolution=float(resolution),
+                                  n_iterations=iterations, seed=_seed64(seed), n_threads=n_threads)[0]
+        return membership.astype(np.int64)
     graph = _igraph(g.n, rows, cols, ew)
     del rows, cols, ew
     if leiden == "paper":

@@ -577,3 +577,23 @@ population's best-match F1 for the one-population sets.
 - Preprocessing (scanpy, the same for both) takes 0.3–5 s on the scRNA-seq sets.
 
 The earlier version of this table (same day, five datasets, no equality check) is superseded.
+
+> **2026-10-14: `leiden="fast"` is now CosTaL's own Leiden** (docs/07 §5); the column above is
+> igraph's, now `leiden="igraph"`. The new `fast`, timed as the whole `find_communities` call
+> (`bench/timing_small.py --fast-only`, key `fast_native`):
+>
+> | Dataset | `fast` end to end | vs original |
+> |---|---:|---:|
+> | E-MTAB-3321 | 0.003 s | 23× |
+> | GSE81861 | 0.031 s | 33× |
+> | GSE74672 | 0.070 s | 376× |
+> | GSE84133 | 0.098 s | 420× |
+> | Nilsson_rare | 0.29 s | 110× |
+> | Samusik_01 | 0.89 s | 102× |
+> | Levine_13 | 2.5 s | 67× |
+> | Levine_32 (dedup.) | 2.3 s | 128× |
+> | Mosmann_rare | 11.5 s | 159× |
+>
+> - Accuracy (one seed each, as above) stays within the seed spread. Against igraph over 20 seeds the
+>   modularity, ARI and F1 are the same (docs/07 §5.2).
+> - On the two smallest sets the total is milliseconds and the kNN's jitter decides the ratio.
