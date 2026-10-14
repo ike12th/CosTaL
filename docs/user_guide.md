@@ -350,7 +350,8 @@ costal info
   partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
 - **`leiden="fast"` gives the same partition everywhere.** CosTaL's own Leiden draws from its own
   random streams and its own `exp`, so a seed gives bit-identical clusters on macOS, Linux and
-  Windows and at any `n_threads` (tested on every platform in CI).
+  Windows and at any `n_threads` (checked in CI against fixed partitions on macOS arm64, Linux
+  x86-64 and aarch64, and Windows x64 and arm64).
 - **The same seed holds within one Leiden version.** leidenalg 0.12.0 changed its default refinement
   (libleidenalg 0.13.0 picks a random neighboring community where earlier versions took the best one),
   so a seed gives different partitions under leidenalg ≤ 0.11 and 0.12. To reproduce a partition

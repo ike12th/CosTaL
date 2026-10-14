@@ -20,18 +20,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `test`: the wheel is installed and the test suite run on the runner, including the
+        # fixed-partition digests of tests/test_leiden_native.py, so every tested platform must give
+        # bit-identical results. Not tested: Intel macOS (cross-compiled on Apple silicon; GitHub is
+        # retiring its Intel macOS runners) and musl (several dependencies publish no musl wheels).
         platform:
-          # ---- primary targets ----
-          - { runner: macos-14,       target: aarch64-apple-darwin,       manylinux: auto }
-          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-gnu,   manylinux: "2_17" }
-          # ---- additional coverage ----
-          # Intel macOS: cross-compiled on Apple silicon (GitHub is retiring its Intel macOS runners)
-          - { runner: macos-14,       target: x86_64-apple-darwin,        manylinux: auto }
-          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-gnu,  manylinux: "2_17" }
-          - { runner: ubuntu-latest,  target: x86_64-unknown-linux-musl,  manylinux: musllinux_1_2 }
-          - { runner: ubuntu-latest,  target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2 }
-          - { runner: windows-latest, target: x86_64-pc-windows-msvc,     manylinux: auto }
-          - { runner: windows-11-arm, target: aarch64-pc-windows-msvc,    manylinux: auto }
+          - { runner: macos-14,         target: aarch64-apple-darwin,       manylinux: auto,          test: true }
+          - { runner: ubuntu-latest,    target: x86_64-unknown-linux-gnu,   manylinux: "2_17",        test: true }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu,  manylinux: "2_17",        test: true }
+          - { runner: windows-latest,   target: x86_64-pc-windows-msvc,     manylinux: auto,          test: true }
+          - { runner: windows-11-arm,   target: aarch64-pc-windows-msvc,    manylinux: auto,          test: true }
+          - { runner: macos-14,         target: x86_64-apple-darwin,        manylinux: auto,          test: false }
+          - { runner: ubuntu-latest,    target: x86_64-unknown-linux-musl,  manylinux: musllinux_1_2, test: false }
+          - { runner: ubuntu-latest,    target: aarch64-unknown-linux-musl, manylinux: musllinux_1_2, test: false }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,9 +44,8 @@ jobs:
           args: --release --out dist
           manylinux: ${{ matrix.platform.manylinux }}
           sccache: "true"
-      - name: test the wheel (native targets only)
-        # Cross-compiled wheels can't run on the runner; skip them.
-        if: ${{ !contains(matrix.platform.target, 'aarch64-unknown-linux') && !contains(matrix.platform.target, 'musl') && !(contains(matrix.platform.target, 'x86_64-apple') && contains(matrix.platform.runner, 'macos-14')) }}
+      - name: test the wheel
+        if: ${{ matrix.platform.test }}
         shell: bash
         run: |
           # the wheel's metadata pulls in every runtime dependency, as for users
