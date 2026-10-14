@@ -34,10 +34,13 @@ The tag re-runs `CI` (all platforms) and `wheels`.
 
 ## 4. Publish to PyPI (maintainer)
 
-One-time setup: the PyPI project is the existing `CosTaL` (0.0.2.4 and earlier). As its owner, on
-pypi.org → *Your projects → CosTaL → Settings → Publishing*, add a trusted publisher: this GitHub
-repository (owner and name), workflow `wheels.yml`, environment `pypi`. In the repository settings,
-create the environment `pypi` (optionally with a required reviewer).
+One-time setup: the PyPI project is the existing `CosTaL` (0.0.2.4 and earlier). PyPI names are
+case-insensitive, so `CosTaL` and `costal` are one project: `pip install costal` already installs it,
+and the 2.0 files (`costal-2.0.0.tar.gz`, `costal-2.0.0-cp39-abi3-….whl`) upload to it. As its owner, on
+pypi.org → *Your projects → CosTaL → Manage → Publishing*, on the *GitHub Actions* tab add a trusted
+publisher: owner `ike12th`, repository `CosTaL`, workflow `wheels.yml`, environment `pypi`. GitHub
+creates the environment `pypi` on the first run that uses it; to require an approval before each
+upload, create it first under the repository's *Settings → Environments* with a required reviewer.
 
 Then on GitHub: *Releases → Draft a new release* from the tag, paste the CHANGELOG section, *Publish*.
 Publishing the release runs the `publish` job of `wheels.yml`, which uploads the wheels and the sdist
