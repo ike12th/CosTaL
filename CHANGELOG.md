@@ -4,7 +4,7 @@ All notable changes to CosTaL. Versions follow [semantic versioning](https://sem
 project rule (docs/04 §6.5): **changing what any default does is a major version**, and
 `compat="paper"` — the method exactly as published — is never removed.
 
-## 2.0.0 — 2026-10
+## 2.0.0 — 2026-10-14
 
 A rewrite of CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph in Rust. 1.0 code keeps working: the same names,
 arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `clustering`, `pp`,
