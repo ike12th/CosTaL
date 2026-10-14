@@ -14,4 +14,4 @@ cargo test --workspace
 
 "$PY" -m pip install -e . --no-build-isolation
 "$PY" -m pytest -q
-"$PY" -m CosTaL.cli info
+"$PY" -m costal.cli info

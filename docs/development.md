@@ -5,9 +5,10 @@
 ```
 crates/costal-core/   Rust: exact kNN kernel (knn.rs), matmul backends, cache detection,
                       edge weights (weight.rs), fuzzy-union symmetrization (graph.rs)
-crates/costal-py/     PyO3 bindings → the CosTaL._costal extension module
-python/CosTaL/   Python API: _api.py (knn … find_communities), _preprocess.py,
-                      _multiscale.py, legacy.py (CosTaL 1.0 compatibility), cli.py
+crates/costal-py/     PyO3 bindings → the costal._costal extension module
+python/costal/        the `costal` package: _api.py (knn … find_communities), _preprocess.py, _fcs.py,
+                      _multiscale.py, cli.py; 1.0's interface in _legacy.py, clustering.py, descriptions.py
+python/CosTaL.py      `import CosTaL`, 1.0's import name: a one-file alias of `costal` (pyproject `include`)
 tests/                pytest suite (also run against built wheels)
 examples/             runnable examples, executed by the test suite
 bench/                benchmarks and experiments behind the design documents (bench/original.py

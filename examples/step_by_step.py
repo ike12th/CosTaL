@@ -7,26 +7,26 @@ import sys
 
 import numpy as np
 
-import CosTaL
+import costal
 from cytometry import synthetic
 
 
 def main(argv):
     raw, truth = synthetic(n=4000)
-    X = CosTaL.preprocess(raw, "mass")
+    X = costal.preprocess(raw, "mass")
 
-    g = CosTaL.knn(X, k=30)                    # the only expensive step
+    g = costal.knn(X, k=30)                    # the only expensive step
     print("kernel stats:", {k: g.meta["stats"][k] for k in ("matmul", "fallback_rows")})
     print("input diagnostics:", g.meta["diagnostics"])
-    g10 = CosTaL.truncate(g, 10)                # the exact 10-NN, for free
-    weights = {w: CosTaL.reweight(g10, w) for w in ("tanimoto", "cosine", "jaccard")}
+    g10 = costal.truncate(g, 10)                # the exact 10-NN, for free
+    weights = {w: costal.reweight(g10, w) for w in ("tanimoto", "cosine", "jaccard")}
     print({w: round(float(v.mean()), 3) for w, v in weights.items()})
 
     import igraph
     import leidenalg as la
     from sklearn.metrics import adjusted_rand_score
 
-    rows, cols, w = CosTaL.build_graph(X, k=10)
+    rows, cols, w = costal.build_graph(X, k=10)
     G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]), edge_attrs={"weight": w})
     for resolution in (0.2, 0.4, 0.8, 1.6):
         part = la.find_partition(G, la.RBConfigurationVertexPartition, weights="weight", n_iterations=10,

@@ -1,4 +1,4 @@
-"""CosTaL.read_fcs: FCS files of every data layout the reader supports, against known values and,
+"""costal.read_fcs: FCS files of every data layout the reader supports, against known values and,
 where it is installed, against fcsparser (whose behavior it follows)."""
 
 import warnings
@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import pytest
 
-import CosTaL
+import costal
 
 
 def write_fcs(path, data, *, datatype="F", byteord="1,2,3,4", widths=None, ranges=None, names_s=None,
@@ -51,7 +51,7 @@ def write_fcs(path, data, *, datatype="F", byteord="1,2,3,4", widths=None, range
 
 
 def check(path, expected, names):
-    meta, df = CosTaL.read_fcs(path)
+    meta, df = costal.read_fcs(path)
     assert list(df.columns) == names
     np.testing.assert_array_equal(df.to_numpy(), expected.astype(np.float32))
     try:
@@ -84,7 +84,7 @@ def test_integer_data_with_range_masks_and_mixed_widths(tmp_path, byteord):
     raw = np.column_stack([rng.integers(0, 2 ** w, 300) for w in widths]).astype(np.uint64)
     expected = raw & np.array([2 ** int(np.ceil(np.log2(r))) - 1 for r in ranges], dtype=np.uint64)
     path = write_fcs(tmp_path / "i.fcs", raw, datatype="I", byteord=byteord, widths=widths, ranges=ranges)
-    meta, df = CosTaL.read_fcs(path)
+    meta, df = costal.read_fcs(path)
     np.testing.assert_array_equal(df.to_numpy(), expected.astype(np.float32))
 
 
@@ -102,21 +102,21 @@ def test_channel_naming_and_escaped_delimiters(tmp_path):
     path = write_fcs(tmp_path / "n.fcs", x, names_s=["CD4", "CD4", ""], names_n=["FL1-A", "FL2-A", "FL3-A"],
                      extra={"$FIL": "run/1.fcs"})
     with pytest.warns(UserWarning, match="not unique"):
-        meta, df = CosTaL.read_fcs(path)
+        meta, df = costal.read_fcs(path)
     assert list(df.columns) == ["FL1-A", "FL2-A", "FL3-A"] and meta["$FIL"] == "run/1.fcs"
-    _, df = CosTaL.read_fcs(path, channel_naming="$PnN")
+    _, df = costal.read_fcs(path, channel_naming="$PnN")
     assert list(df.columns) == ["FL1-A", "FL2-A", "FL3-A"]
     path = write_fcs(tmp_path / "m.fcs", x, names_s=["CD4", "", "CD8"], names_n=["FL1-A", "FL2-A", "FL3-A"])
-    assert list(CosTaL.read_fcs(path)[1].columns) == ["CD4", "FL2-A", "CD8"]  # empty $PnS → $PnN
+    assert list(costal.read_fcs(path)[1].columns) == ["CD4", "FL2-A", "CD8"]  # empty $PnS → $PnN
 
 
 def test_rejects_what_it_cannot_read(tmp_path):
     bad = tmp_path / "bad.fcs"
     bad.write_bytes(b"not an fcs file at all" * 10)
     with pytest.raises(ValueError, match="not an FCS file"):
-        CosTaL.read_fcs(bad)
+        costal.read_fcs(bad)
     x = np.ones((10, 2))
     path = write_fcs(tmp_path / "t.fcs", x)
     path.write_bytes(path.read_bytes()[:-8])
     with pytest.raises(ValueError, match="truncated"):
-        CosTaL.read_fcs(path)
+        costal.read_fcs(path)

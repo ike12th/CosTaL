@@ -6,18 +6,19 @@ clustering algorithm for high-dimensional single-cell data analysis.* Briefings 
 
 End to end, as published (docs/04 §0.0)::
 
-    import CosTaL
+    import costal
 
-    X = CosTaL.preprocess(raw, "mass")      # or "flow", "spectral flow", "scrnaseq"
-    labels = CosTaL.find_communities(X)
+    X = costal.preprocess(raw, "mass")      # or "flow", "spectral flow", "scrnaseq"
+    labels = costal.find_communities(X)
 
 or step by step::
 
-    rows, cols, w = CosTaL.build_graph(X, k=10)
+    rows, cols, w = costal.build_graph(X, k=10)
 
-CosTaL 1.0 code keeps working: ``CosTaL.find_communities(X, pp_method="mass", nbr_num=10)``,
-``CosTaL.clustering``, ``CosTaL.pp``, ``CosTaL.return_scores`` and ``from CosTaL.clustering import …``
-behave as they did (docs/user_guide.md §11).
+CosTaL 1.0 code keeps working: ``import CosTaL`` (1.0's import name) gives this same package, and
+``CosTaL.find_communities(X, pp_method="mass", nbr_num=10)``, ``CosTaL.clustering``, ``CosTaL.pp``,
+``CosTaL.return_scores`` and ``from CosTaL.clustering import …`` behave as they did
+(docs/user_guide.md §11).
 """
 
 from ._api import CostalWarning, KnnGraph, build_graph, find_communities, knn, reweight, truncate
@@ -35,7 +36,7 @@ from ._multiscale import find_communities_multiscale
 from ._preprocess import preprocess
 
 # The 1.0 interface. As in 1.0, importing the `clustering` submodule and then its `clustering`
-# function leaves `CosTaL.clustering` bound to the function, while `from CosTaL.clustering import …`
+# function leaves `costal.clustering` bound to the function, while `from costal.clustering import …`
 # still finds the submodule.
 from .clustering import clustering, normalize_arcsinh, pp  # noqa: E402  (after the 2.0 API on purpose)
 from .descriptions import (  # noqa: E402

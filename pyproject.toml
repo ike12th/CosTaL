@@ -55,14 +55,16 @@ Issues = "https://github.com/ike12th/CosTaL/issues"
 Paper = "https://doi.org/10.1093/bib/bbad157"
 
 [project.scripts]
-costal = "CosTaL.cli:main"
+costal = "costal.cli:main"
 
 [tool.maturin]
 manifest-path = "crates/costal-py/Cargo.toml"
-module-name = "CosTaL._costal"
+module-name = "costal._costal"
 python-source = "python"
 features = ["pyo3/extension-module"]
 strip = true
+# 1.0's import name: a one-file alias of the costal package, at the top level of the wheel
+include = [{ path = "python/CosTaL.py", format = ["sdist", "wheel"] }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

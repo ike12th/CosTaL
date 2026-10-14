@@ -30,7 +30,7 @@ costal info          # confirms the build
 
 One command installs everything it uses: igraph and leidenalg (Leiden), scanpy and scikit-misc
 (scRNA-seq preprocessing), pandas and anndata (file readers), scikit-learn and scipy; FCS files are
-read by CosTaL itself (`CosTaL.read_fcs`).
+read by CosTaL itself (`costal.read_fcs`).
 Python ≥ 3.9 on macOS (Apple silicon, Intel), Linux (x86-64, aarch64) and Windows (x64, arm64);
 on Windows on Arm, leidenalg, scanpy, scikit-misc and anndata have no wheels yet, so `leiden="fast"`
 and the cytometry workflow work there. Building from source: [docs/development.md](docs/development.md).
@@ -38,13 +38,13 @@ and the cytometry workflow work there. Building from source: [docs/development.m
 ## Use
 
 ```python
-import CosTaL
+import costal
 
-X = CosTaL.preprocess(raw, "mass")          # "mass", "flow", "spectral flow" or "scrnaseq"
-labels = CosTaL.find_communities(X)         # the published CosTaL
+X = costal.preprocess(raw, "mass")          # "mass", "flow", "spectral flow" or "scrnaseq"
+labels = costal.find_communities(X)         # the published CosTaL
 
-labels = CosTaL.find_communities(X, leiden="fast", resolution=0.4)   # faster; fewer, larger clusters
-labels = CosTaL.find_communities_multiscale(X)                       # keeps rare populations
+labels = costal.find_communities(X, leiden="fast", resolution=0.4)   # faster; fewer, larger clusters
+labels = costal.find_communities_multiscale(X)                       # keeps rare populations
 ```
 
 ```bash
@@ -59,7 +59,8 @@ reproducibility, and memory.
 
 ## Upgrading from 1.0
 
-1.0 code runs unchanged:
+1.0 code runs unchanged. 2.0's import name is lowercase, `import costal`, as Python packages
+usually are; 1.0's `import CosTaL` still works and gives the very same package:
 
 ```python
 import CosTaL

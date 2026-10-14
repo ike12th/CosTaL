@@ -1,4 +1,5 @@
-"""CosTaL 1.0's ``CosTaL.clustering`` module: ``from CosTaL.clustering import find_communities``
+"""CosTaL 1.0's ``clustering`` module: ``from CosTaL.clustering import find_communities`` (or
+``from costal.clustering import …``)
 keeps working. ``find_communities`` is the 2.0 function, which accepts the 1.0 arguments."""
 
 from ._api import find_communities

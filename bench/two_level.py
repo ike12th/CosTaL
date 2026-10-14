@@ -3,7 +3,7 @@
 The CosTaL supplement ("CosTaL Multilevel Clustering") describes an iterative option: cluster, then
 cluster each resulting population again, skipping populations smaller than a threshold (default 500
 cells); with two levels it gave the best F1 on Mosmann_rare and Nilsson_rare. The implementation
-(`CosTaL.clustering_iterative`) was never released (PyPI stops at 0.0.2.4), so this reconstructs it
+(`costal.clustering_iterative`) was never released (PyPI stops at 0.0.2.4), so this reconstructs it
 from that description:
 
 - level 1: the published CosTaL graph (exact cosine kNN, Tanimoto, fuzzy union), Leiden at 0.8;
@@ -35,7 +35,7 @@ from small_datasets import leiden  # noqa: E402
 from stage_a import environment  # noqa: E402
 from stage_c2 import build  # noqa: E402
 
-import CosTaL as cp  # noqa: E402
+import costal as cp  # noqa: E402
 
 OUT = HERE / "out" / "two_level.json"
 K = 10

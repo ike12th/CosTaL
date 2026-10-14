@@ -50,7 +50,7 @@ jobs:
         run: |
           # the wheel's metadata pulls in every runtime dependency, as for users
           pip install --find-links dist CosTaL pytest
-          python -c "import CosTaL; print(CosTaL.hello())"
+          python -c "import costal, CosTaL; print(costal.hello()); assert CosTaL.find_communities is costal.find_communities"
           costal info
           # run from outside the source tree so the installed wheel is what gets tested
           cp -r tests examples packaging bench pyproject.toml "$RUNNER_TEMP/" && cd "$RUNNER_TEMP"

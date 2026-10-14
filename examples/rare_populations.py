@@ -12,7 +12,7 @@ import sys
 
 import numpy as np
 
-import CosTaL
+import costal
 
 
 def synthetic(n=20000, markers=10, rare=60, seed=1):
@@ -40,15 +40,15 @@ def rare_f1(truth, labels, population=5):
 
 def main(argv, n=20000):
     if len(argv) > 1:
-        _, df = CosTaL.read_fcs(argv[1])
+        _, df = costal.read_fcs(argv[1])
         raw, truth = df[[c for c in df.columns if c not in {"Time", "Event_length", "label"}]], None
         platform = argv[2] if len(argv) > 2 else "mass"
     else:
         raw, truth = synthetic(n=n)
         platform = "mass"
-    X = CosTaL.preprocess(raw, platform)
-    single = CosTaL.find_communities(X, leiden="fast", seed=0)
-    multi, info = CosTaL.find_communities_multiscale(X, return_info=True)
+    X = costal.preprocess(raw, platform)
+    single = costal.find_communities(X, leiden="fast", seed=0)
+    multi, info = costal.find_communities_multiscale(X, return_info=True)
     print(f"one resolution (0.8): {single.max() + 1} clusters")
     print(f"multiscale:           {info['clusters']} clusters, {len(info['carved'])} split off from coarser ones")
     for c in info["carved"][:10]:

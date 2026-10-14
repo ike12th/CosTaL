@@ -5,8 +5,8 @@ import json
 import numpy as np
 import pytest
 
-import CosTaL as cp
-from CosTaL.cli import main
+import costal as cp
+from costal.cli import main
 
 
 def cells(seed=0, n=300, d=6):

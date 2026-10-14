@@ -31,7 +31,7 @@ sys.path.insert(0, str(HERE))
 from stage_a import environment, label_scores, load_levine  # noqa: E402
 from stage_c2 import build, population_recall  # noqa: E402
 
-import CosTaL as cp  # noqa: E402
+import costal as cp  # noqa: E402
 
 OUT = HERE / "out" / "stage_c3.json"
 RESOLUTIONS = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0]

@@ -8,7 +8,7 @@ import sys
 
 import numpy as np
 
-import CosTaL
+import costal
 
 
 def synthetic(n=3000, markers=12, populations=6, seed=0):
@@ -21,7 +21,7 @@ def synthetic(n=3000, markers=12, populations=6, seed=0):
 
 def main(argv):
     if len(argv) > 1:
-        _, df = CosTaL.read_fcs(argv[1])
+        _, df = costal.read_fcs(argv[1])
         drop = {"Time", "Event_length", "Cell_length", "label"}
         raw, truth = df[[c for c in df.columns if c not in drop]], None
         platform = argv[2] if len(argv) > 2 else "mass"
@@ -29,8 +29,8 @@ def main(argv):
         raw, truth = synthetic()
         platform = "mass"
 
-    X = CosTaL.preprocess(raw, platform)
-    labels = CosTaL.find_communities(X, seed=0)
+    X = costal.preprocess(raw, platform)
+    labels = costal.find_communities(X, seed=0)
     sizes = np.bincount(labels)
     print(f"{len(X)} cells, {X.shape[1]} markers -> {len(sizes)} clusters; sizes {sorted(sizes, reverse=True)}")
     if truth is not None:

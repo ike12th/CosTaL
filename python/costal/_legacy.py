@@ -56,7 +56,7 @@ def find_communities(X: Any, pp_method: str | None = None, method: str = "tani",
         raise NotImplementedError(
             "local=True is not carried over: the original passed similarities where UMAP expects "
             "distances, and the corrected version gave no consistent gain (docs/05 §2.2). For rare "
-            "populations use CosTaL.find_communities_multiscale.")
+            "populations use costal.find_communities_multiscale.")
     if method not in _METHODS:
         raise RuntimeError("Method not supported")
     X = pp(X, platform=pp_method)

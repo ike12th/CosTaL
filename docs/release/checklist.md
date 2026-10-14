@@ -10,7 +10,7 @@ and irreversible: they are done by the maintainer, never by an automated job on 
 - [ ] `CHANGELOG.md`: the release's section with its date; anything that changes a default is a
       major version (docs/04 §6.5).
 - [ ] `CITATION.cff`: `version`.
-- [ ] `docs/user_guide.md` matches the API (`python -c "import CosTaL, inspect; ..."` spot checks;
+- [ ] `docs/user_guide.md` matches the API (`python -c "import costal, inspect; ..."` spot checks;
       the examples in `examples/` run in the test suite).
 - [ ] Local: `scripts/dev.sh` passes (fmt, clippy, `cargo test`, pytest).
 
@@ -44,7 +44,7 @@ Publishing the release runs the `publish` job of `wheels.yml`, which uploads the
 built for that tag. Check https://pypi.org/project/CosTaL/ and, in a fresh environment:
 
 ```bash
-pip install --upgrade CosTaL && costal info && python -c "import CosTaL; print(CosTaL.__version__)"
+pip install --upgrade CosTaL && costal info && python -c "import costal, CosTaL; print(costal.__version__, CosTaL.__version__)"
 ```
 
 Without trusted publishing: download the `wheels-*` artifacts into `dist/` and run

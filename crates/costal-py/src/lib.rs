@@ -1,8 +1,8 @@
 //! PyO3 bindings for CosTaL. Only type conversion and error mapping live here; the algorithms
 //! are in `costal-core`.
 //!
-//! Functions starting with an underscore are low-level entry points for the `CosTaL`
-//! package itself; the public API is on the Python side (`python/CosTaL/_api.py`), together
+//! Functions starting with an underscore are low-level entry points for the `costal`
+//! package itself; the public API is on the Python side (`python/costal/_api.py`), together
 //! with argument validation and input diagnostics.
 
 use costal_core::knn::{self, Knn, KnnParams, Select};

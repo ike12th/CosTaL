@@ -8,7 +8,13 @@ project rule (docs/04 §6.5): **changing what any default does is a major versio
 
 A rewrite of CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph in Rust. 1.0 code keeps working: the same names,
 arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `clustering`, `pp`,
-`return_scores`, `from CosTaL.clustering import …`).
+`return_scores`, `from costal.clustering import …`).
+
+### Import name
+
+- `import costal` (lowercase, as Python packages usually are, and as the `costal` command and
+  `pip install costal` are spelled). `import CosTaL`, 1.0's import name, is kept as an alias that gives
+  the very same package, including `from CosTaL.clustering import …` and `from CosTaL.descriptions import …`.
 
 ### The published method, reimplemented
 
@@ -70,4 +76,4 @@ arguments and import paths (`find_communities(X, pp_method=…, nbr_num=…)`, `
   `build_tani_graph`, `bc`, `map_tani`) are gone.
 - `find_communities` called the 2.0 way returns a numpy array; called with 1.0's arguments it
   returns a list, as before.
-- The evaluation helpers of `CosTaL.descriptions` are kept and match 1.0.
+- The evaluation helpers of `costal.descriptions` are kept and match 1.0.

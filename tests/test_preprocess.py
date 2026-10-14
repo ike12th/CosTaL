@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 import pytest
 
-import CosTaL as cp
+import costal as cp
 
 
 @pytest.mark.parametrize("platform,cofactor", [("mass", 5), ("flow", 150), ("spectral flow", 6000)])

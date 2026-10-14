@@ -36,8 +36,8 @@ This installs everything CosTaL 2.0 uses:
 |---|---|
 | Leiden (`find_communities`, `find_communities_multiscale`) | igraph, leidenalg |
 | scRNA-seq preprocessing (`preprocess(..., "scrnaseq")`) | scanpy, scikit-misc |
-| Reading CSV / h5ad in `costal cluster` (FCS is read by `CosTaL.read_fcs` itself) | pandas, anndata |
-| `CosTaL.legacy.return_scores` | scikit-learn, scipy |
+| Reading CSV / h5ad in `costal cluster` (FCS is read by `costal.read_fcs` itself) | pandas, anndata |
+| `costal.legacy.return_scores` | scikit-learn, scipy |
 
 On Python 3.9, numpy is held below 2.0, because scikit-misc's last release for 3.9 needs numpy 1.x.
 
@@ -77,24 +77,24 @@ pip install maturin && pip install .
 ### Cytometry
 
 ```python
-import CosTaL
+import costal
 
-_, df = CosTaL.read_fcs("cells.fcs")
+_, df = costal.read_fcs("cells.fcs")
 markers = [c for c in df.columns if c not in ("Time", "Event_length", "label")]
 
-X = CosTaL.preprocess(df[markers], "mass")      # arcsinh(x/5); "flow": x/150; "spectral flow": x/6000
-labels = CosTaL.find_communities(X)             # the published CosTaL
+X = costal.preprocess(df[markers], "mass")      # arcsinh(x/5); "flow": x/150; "spectral flow": x/6000
+labels = costal.find_communities(X)             # the published CosTaL
 ```
 
 ### scRNA-seq
 
 ```python
 import anndata
-import CosTaL
+import costal
 
 ad = anndata.read_h5ad("counts.h5ad")                # raw UMI counts, cells × genes
-X, cells = CosTaL.preprocess(ad.X, "scrnaseq", return_cells=True)
-labels = CosTaL.find_communities(X)
+X, cells = costal.preprocess(ad.X, "scrnaseq", return_cells=True)
+labels = costal.find_communities(X)
 ad = ad[cells]                                       # cells with < 200 detected genes were dropped
 ad.obs["costal"] = labels.astype(str)
 ```
@@ -112,9 +112,9 @@ The output has one row per input cell: `cell,cluster`.
 ### Faster, or finer
 
 ```python
-labels = CosTaL.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
-labels = CosTaL.find_communities(X, resolution=0.4)        # fewer, larger clusters
-labels = CosTaL.find_communities_multiscale(X)             # rare populations kept (section 5)
+labels = costal.find_communities(X, leiden="fast")         # igraph's Leiden: 5-14x faster end to end
+labels = costal.find_communities(X, resolution=0.4)        # fewer, larger clusters
+labels = costal.find_communities_multiscale(X)             # rare populations kept (section 5)
 ```
 
 ---
@@ -151,11 +151,11 @@ what the original `pp()` produced:
 `find_communities` is four steps. Calling them yourself lets you do the expensive one once:
 
 ```python
-g = CosTaL.knn(X, k=30)                     # exact kNN: the only expensive step
-w = CosTaL.reweight(g, "tanimoto")          # edge weights, ~milliseconds
-g10 = CosTaL.truncate(g, 10)                # the exact 10-NN, for free
+g = costal.knn(X, k=30)                     # exact kNN: the only expensive step
+w = costal.reweight(g, "tanimoto")          # edge weights, ~milliseconds
+g10 = costal.truncate(g, 10)                # the exact 10-NN, for free
 
-rows, cols, weights = CosTaL.build_graph(X, k=10)   # kNN → Tanimoto → fuzzy union, in one call
+rows, cols, weights = costal.build_graph(X, k=10)   # kNN → Tanimoto → fuzzy union, in one call
 
 import igraph, leidenalg as la
 G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]), edge_attrs={"weight": weights})
@@ -188,7 +188,7 @@ the rest of the cluster it came from. A real sub-population inside a large clust
 the rest; a fragment cut out of a homogeneous population has many.
 
 ```python
-labels, info = CosTaL.find_communities_multiscale(X, return_info=True)
+labels, info = costal.find_communities_multiscale(X, return_info=True)
 print(info["clusters"], len(info["carved"]))
 ```
 
@@ -208,7 +208,7 @@ by default) or populations that are not cohesive in the kNN graph.
 
 ## 6. API reference
 
-All functions take a cells × features matrix `X` (numpy array or anything `np.asarray` accepts;
+All functions are in the `costal` package (`import costal`; 1.0's `import CosTaL` is the same package). They take a cells × features matrix `X` (numpy array or anything `np.asarray` accepts;
 converted to float32 internally) and return numpy arrays. Errors are `ValueError` / `TypeError`;
 advice is a `CosTaL.CostalWarning`.
 
@@ -291,8 +291,8 @@ weights as the original `build_graph`.
 
 ### Diagnostics
 
-`costal info` / `CosTaL.default_matmul()`, `l2_bytes_per_thread()`, `tile_budget_bytes()`
-report the build and the cache sizes the kernel tiles for. `CosTaL.__version__` is the version.
+`costal info` / `costal.default_matmul()`, `l2_bytes_per_thread()`, `tile_budget_bytes()`
+report the build and the cache sizes the kernel tiles for. `costal.__version__` is the version.
 
 ---
 
@@ -418,6 +418,7 @@ pip install --upgrade CosTaL
 
 | 1.0 code | In 2.0 |
 |---|---|
+| `import CosTaL` | works: 1.0's import name is an alias of `costal`, the 2.0 import name (the very same functions) |
 | `CosTaL.find_communities(X, pp_method="mass", method="tani", nbr_num=10, resolution=0.8, seed=s)` | works as before and returns a list; 1.0's arguments select the 1.0 interface |
 | `CosTaL.find_communities(X, "mass")` | works (1.0's positional `pp_method`) |
 | `CosTaL.clustering(X, ...)`, `CosTaL.pp(X, platform)`, `CosTaL.normalize_arcsinh(X, base)` | work as before |
@@ -429,7 +430,8 @@ pip install --upgrade CosTaL
 | `local=True` | raises `NotImplementedError` (see below); for rare populations use `find_communities_multiscale` |
 | the 1.0 internals `save_as_ijv`, `build_tani_graph`, `bc`, `map_tani`, `build_graph(rows, columns, weights, shape)`, … | removed; `build_graph` is now the 2.0 function of section 4 |
 
-The 2.0 interface sits next to it: `CosTaL.preprocess(X, platform)` then `CosTaL.find_communities(X)`
+The 2.0 interface sits next to it, under the import name `costal`: `costal.preprocess(X, platform)` then
+`costal.find_communities(X)`
 (which then returns a numpy array), plus `knn`, `reweight`, `truncate`, `build_graph`,
 `find_communities_multiscale` and the `costal` command line. Mixing the two in one call — 1.0's
 `nbr_num` with 2.0's `leiden`, say — is an error rather than a guess.

@@ -5,7 +5,8 @@
 
 import sys
 
-import CosTaL
+import CosTaL  # 1.0's import name, kept as an alias of `costal`
+import costal
 from cytometry import synthetic
 
 
@@ -17,7 +18,7 @@ def main(argv):
     print(f"1.0 call: {max(labels) + 1} clusters; AMI {scores[0]:.3f}, ARI {scores[1]:.3f}, FlowCAP F1 {scores[2]:.3f}")
 
     # the same with the 2.0 interface: preprocessing as its own step, a numpy array back
-    new = CosTaL.find_communities(CosTaL.preprocess(raw, "mass"), k=10, resolution=0.8, seed=0)
+    new = costal.find_communities(costal.preprocess(raw, "mass"), k=10, resolution=0.8, seed=0)
     print(f"2.0 call:   identical labels: {new.tolist() == labels}")
     return labels
 

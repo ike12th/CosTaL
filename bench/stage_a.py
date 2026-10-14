@@ -33,8 +33,8 @@ K = 10
 SEED = 0
 SEEDS = range(5)
 
-import CosTaL as cp  # noqa: E402
-from CosTaL import _costal as ext  # noqa: E402
+import costal as cp  # noqa: E402
+from costal import _costal as ext  # noqa: E402
 
 NON_MARKER = {
     "Time", "Cell_length", "DNA1", "DNA2", "Viability",

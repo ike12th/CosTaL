@@ -23,8 +23,8 @@ doi:10.1093/bib/bbad157) — exact cosine kNN, Tanimoto edge weights, Leiden —
 
 - the same clusters as the published method, tens to hundreds of times faster;
 - every platform (macOS, Linux, Windows), no external binary, no temporary files;
-- 1.0 code runs unchanged (`CosTaL.find_communities(X, pp_method="mass")`, `CosTaL.clustering`,
-  `CosTaL.return_scores`, …);
+- 1.0 code runs unchanged (`import CosTaL`, `CosTaL.find_communities(X, pp_method="mass")`,
+  `CosTaL.clustering`, `CosTaL.return_scores`, …); new code can use `import costal`;
 - a command line: `costal cluster cells.fcs --platform mass`;
 - opt-in extras for rare populations (`find_communities_multiscale`).
 

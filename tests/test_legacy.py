@@ -1,4 +1,5 @@
-"""CosTaL 1.0 code keeps working on 2.0: the same names, arguments, import paths and list results."""
+"""CosTaL 1.0 code keeps working on 2.0: the same import name (``CosTaL``, an alias of ``costal``),
+names, arguments, import paths and list results. These tests use the 1.0 spelling on purpose."""
 
 import importlib.util
 from pathlib import Path
@@ -7,6 +8,7 @@ import numpy as np
 import pytest
 
 import CosTaL
+import costal
 
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINAL_DESCRIPTIONS = ROOT / "bench" / "reference" / "CosTaL-0.0.2.4" / "CosTaL" / "descriptions.py"
@@ -95,3 +97,26 @@ def test_scores_match_v1(seed):
     assert CosTaL.get_rare_f1(ytrue[:50] > 3, ypred[:50]) == pytest.approx(orig.get_rare_f1(ytrue[:50] > 3, ypred[:50]))
     x = rng.normal(size=(20, 5)) * (rng.random((20, 5)) < 0.5)
     assert CosTaL.calculate_sparsity(x) == orig.calculate_sparsity(x)
+
+
+def test_costal_and_CosTaL_are_one_package():
+    assert CosTaL.find_communities is costal.find_communities
+    assert CosTaL.preprocess is costal.preprocess and CosTaL.read_fcs is costal.read_fcs
+    assert CosTaL.__version__ == costal.__version__
+    assert set(CosTaL.__all__) == set(costal.__all__)
+    import CosTaL.clustering as c1
+    import costal.clustering as c2
+
+    assert c1 is c2
+
+
+def test_import_paths_of_v1_in_a_fresh_interpreter():
+    """`from CosTaL.clustering import …` as the first import of a process, as in 1.0 scripts."""
+    import subprocess
+    import sys
+
+    code = ("from CosTaL.clustering import find_communities, pp; from CosTaL.descriptions import return_scores; "
+            "import CosTaL, costal; assert find_communities is costal.find_communities; "
+            "assert CosTaL.clustering is costal.clustering; print('ok')")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "ok"

@@ -13,8 +13,8 @@ import warnings
 import numpy as np
 import pytest
 
-import CosTaL as cp
-from CosTaL import _costal as ext
+import costal as cp
+from costal import _costal as ext
 
 
 def clustered(n, d, seed, n_centers=8, noise=0.5):

@@ -5,7 +5,7 @@
     costal info
 
 Inputs: CSV / TSV (cells × features, header row; non-numeric columns are dropped), FCS, ``.npy``,
-and ``.h5ad`` (its ``.X``). FCS is read by ``CosTaL.read_fcs``; pandas and anndata come with CosTaL.
+and ``.h5ad`` (its ``.X``). FCS is read by ``costal.read_fcs``; pandas and anndata are installed with it.
 The output has one row per input cell: its index and its cluster (``-1`` for a cell that scRNA-seq
 preprocessing dropped).
 """
@@ -69,7 +69,7 @@ def _read(path: Path, columns: list[str] | None, exclude: list[str]):
 
 
 def _cluster(args: argparse.Namespace) -> int:
-    import CosTaL as cp
+    import costal as cp
 
     path = Path(args.input)
     t0 = time.perf_counter()

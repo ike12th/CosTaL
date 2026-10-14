@@ -302,7 +302,7 @@ def build_graph(
 
     Hand it to Leiden the same way as the original::
 
-        rows, cols, w = CosTaL.build_graph(X)
+        rows, cols, w = costal.build_graph(X)
         G = igraph.Graph(n=len(X), edges=np.column_stack([rows, cols]),
                          edge_attrs={"weight": w})
     """
