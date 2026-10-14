@@ -28,6 +28,13 @@ pip install --upgrade CosTaL
 costal info          # confirms the build
 ```
 
+> **2.0 is not on PyPI yet** (the upload is pending). Until it is, `pip install CosTaL` installs 1.0;
+> install 2.0 from the [v2.0.0 release](https://github.com/ike12th/CosTaL/releases/tag/v2.0.0):
+>
+> ```bash
+> pip install --upgrade CosTaL --find-links https://github.com/ike12th/CosTaL/releases/expanded_assets/v2.0.0
+> ```
+
 One command installs everything it uses: igraph and leidenalg (Leiden), scanpy and scikit-misc
 (scRNA-seq preprocessing), pandas and anndata (file readers), scikit-learn and scipy; FCS files are
 read by CosTaL itself (`costal.read_fcs`).
