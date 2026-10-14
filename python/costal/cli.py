@@ -13,6 +13,7 @@ preprocessing dropped).
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import platform
 import sys
@@ -123,6 +124,13 @@ def _info() -> int:
     print(f"matmul        : {default_matmul()}")
     print(f"L2 per thread : {f'{l2 // 1024} KB' if l2 else 'unknown (using fallback)'}")
     print(f"tile budget   : {tile_budget_bytes() // 1024} KB")
+    # Same seed, same partition holds only within one Leiden version: report them with results
+    for name in ("leidenalg", "igraph"):
+        try:
+            version = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            version = "not installed"
+        print(f"{name:<14}: {version}")
     return 0
 
 

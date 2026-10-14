@@ -345,6 +345,10 @@ costal info
   results across machines, operating systems, thread counts and matrix-multiplication backends.
 - **Leiden is randomized.** Pass `seed=` for repeatable clusters. The same seed reproduces the same
   partition on the same graph; different seeds agreed at ARI 0.84–0.91 on Levine_32 (docs/03 §9.1).
+- **The same seed holds within one Leiden version.** leidenalg 0.12.0 changed its default refinement
+  (libleidenalg 0.13.0 picks a random neighboring community where earlier versions took the best one),
+  so a seed gives different partitions under leidenalg ≤ 0.11 and 0.12. To reproduce a partition
+  exactly, record the versions that `costal info` prints and install the same ones.
 - **Parity with the original.** On the paper's datasets, CosTaL 2.0 and the original code give identical
   neighbor sets and, at the same Leiden seed, identical partitions on most datasets (docs/03 §10).
   Where partitions differ, the graphs differ only in the last bits of the edge weights (float32 vs
