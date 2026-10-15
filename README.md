@@ -52,6 +52,7 @@ labels = costal.find_communities(X)         # the published CosTaL
 
 labels = costal.find_communities(X, leiden="fast", resolution=0.4)   # faster; fewer, larger clusters
 labels = costal.find_communities_multiscale(X)                       # keeps rare populations
+labels = costal.leiden(n, rows, cols, weights)                        # Leiden on any edge list
 ```
 
 ```bash

@@ -290,6 +290,60 @@ kNN → weights → fuzzy union. Returns the upper-triangular edge list `(rows, 
 int32, float64, sorted by (row, col), without self-loops or zero-weight edges — the same edges and
 weights as the original `build_graph`.
 
+### `leiden(n_nodes, rows, cols, weights, *, objective="modularity", resolution=1.0, n_iterations=2, beta=0.01, seed=None, n_threads=None, initial_membership=None, return_quality=False)`
+
+CosTaL's own Leiden — the implementation behind `leiden="fast"` (docs/07 §5) — on any undirected
+weighted graph given as an edge list, such as `build_graph`'s output or a sparse matrix from
+elsewhere. Returns `(n_nodes,)` int64 labels `0 … k − 1`, numbered by first appearance in node
+order, and with `return_quality=True` the pair `(labels, quality)`.
+
+| Parameter | Meaning |
+|---|---|
+| `n_nodes` | number of nodes; ids are `0 … n_nodes − 1`, and nodes without edges stay alone |
+| `rows`, `cols`, `weights` | the edges (COO): integer node ids and weights, one entry per edge; see below |
+| `objective` | `"modularity"` (leidenalg's RBConfiguration: a pair costs γ k_i k_j / 2m) or `"cpm"` (the constant Potts model: a pair costs γ) |
+| `resolution` | γ ≥ 0; higher gives more, smaller clusters |
+| `n_iterations` | Leiden iterations; negative runs until an iteration moves no node (at most 1,000); 0 is an error |
+| `beta` | randomness of the refinement, in edge-weight units (0.01, as igraph and the authors' reference) |
+| `seed` | any integer (taken modulo 2⁶⁴); `None` draws one |
+| `n_threads` | threads; default all cores — the result does not depend on it |
+| `initial_membership` | optional integer label per node (any values): start from this partition |
+| `return_quality` | also return the partition's quality |
+
+**The edge list** may give each undirected edge once, in either orientation, or every edge in both
+directions with equal weights (a symmetric matrix: `scipy.sparse.coo_matrix(A)`'s `row`, `col`,
+`data`). Anything else raises `ValueError` rather than guessing:
+- a pair listed twice in the same direction, **even with equal weights** — such duplicates are not
+  merged; sum or drop them before calling;
+- the two directions of a pair with different weights;
+- a mix of pairs given once and pairs given both ways;
+- a self-loop, or a node id outside `0 … n_nodes − 1`;
+- a weight that is negative, NaN or infinite;
+- arrays of different lengths, or non-integer node ids.
+
+Edges of weight 0 are ignored.
+
+**The quality** is the objective being optimized, **at the given resolution**:
+- `"modularity"`: Q_γ = (1/2m) Σ_ij (A_ij − γ k_i k_j / 2m) δ(c_i, c_j), the value of igraph's and
+  networkx's `modularity(..., resolution=γ)`. It is the standard modularity Q only when
+  `resolution=1`; for a partition found at another γ, Q at γ = 1 is a separate number.
+- `"cpm"`: Σ_{i≠j} (A_ij − γ) δ(c_i, c_j) over ordered pairs, i.e. Σ_c [2 w_c − γ n_c (n_c − 1)]
+  with w_c the weight of the edges inside cluster c and n_c its size — exactly leidenalg's
+  `CPMVertexPartition.quality()`.
+
+**Guarantees.**
+- The same inputs and seed give the same partition on every platform and at any `n_threads`
+  (checked in CI against fixed partitions on macOS, Linux and Windows).
+- Every cluster is connected.
+- `leiden` is part of the stable API: no breaking changes within 2.x.
+
+```python
+import scipy.sparse as sp
+A = sp.coo_matrix(adata.obsp["connectivities"])          # e.g. scanpy's neighbor graph
+labels = costal.leiden(A.shape[0], A.row, A.col, A.data, resolution=1.0, seed=0)
+labels, q = costal.leiden(n, rows, cols, w, objective="cpm", resolution=0.05, return_quality=True)
+```
+
 ### Diagnostics
 
 `costal info` / `costal.default_matmul()`, `l2_bytes_per_thread()`, `tile_budget_bytes()`

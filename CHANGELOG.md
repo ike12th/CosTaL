@@ -4,6 +4,20 @@ All notable changes to CosTaL. Versions follow [semantic versioning](https://sem
 project rule (docs/04 §6.5): **changing what any default does is a major version**, and
 `compat="paper"` — the method exactly as published — is never removed.
 
+## Unreleased (2.1.0)
+
+### Added
+
+- `costal.leiden(n_nodes, rows, cols, weights, …)`: CosTaL's own Leiden (the implementation behind
+  `leiden="fast"`) on any undirected weighted graph given as an edge list, each edge once or as a
+  symmetric list.
+  - Objectives: modularity (RBConfiguration) and the constant Potts model (`objective="cpm"`).
+  - Options: `initial_membership` to start from a partition; `return_quality=True` for the
+    objective's value at the given resolution.
+  - Validation errors are `ValueError`.
+  - The same inputs and seed give the same partition on every platform and thread count.
+  - Part of the stable API (user guide §6).
+
 ## 2.0.0 — 2026-10-14
 
 A rewrite of CosTaL 1.0 (published on PyPI as 0.0.2.4) with the kNN graph in Rust. 1.0 code keeps working: the same names,

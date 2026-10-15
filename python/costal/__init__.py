@@ -14,6 +14,7 @@ End to end, as published (docs/04 §0.0)::
 or step by step::
 
     rows, cols, w = costal.build_graph(X, k=10)
+    labels = costal.leiden(len(X), rows, cols, w, resolution=0.8)   # Leiden on any edge list
 
 CosTaL 1.0 code keeps working: ``import CosTaL`` (1.0's import name) gives this same package, and
 ``CosTaL.find_communities(X, pp_method="mass", nbr_num=10)``, ``CosTaL.clustering``, ``CosTaL.pp``,
@@ -32,6 +33,7 @@ from ._costal import (
     tile_budget_bytes,
 )
 from ._fcs import read_fcs
+from ._leiden import leiden
 from ._multiscale import find_communities_multiscale
 from ._preprocess import preprocess
 
@@ -64,6 +66,7 @@ __all__ = [
     "hello",
     "knn",
     "l2_bytes_per_thread",
+    "leiden",
     "normalize_arcsinh",
     "pp",
     "preprocess",

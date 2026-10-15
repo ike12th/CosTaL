@@ -6,7 +6,7 @@
 //! with argument validation and input diagnostics.
 
 use costal_core::knn::{self, Knn, KnnParams, Select};
-use costal_core::leiden::{self, Csr, LeidenParams, Partition};
+use costal_core::leiden::{self, Csr, LeidenParams, Objective, Partition};
 use costal_core::matmul::Matmul;
 use costal_core::weight::{self, Weight};
 use costal_core::{cache, graph};
@@ -288,6 +288,7 @@ fn _leiden<'py>(
 ) -> PyResult<(Bound<'py, PyArray1<i32>>, usize, usize, bool)> {
     let (r, c, w) = edge_list(&rows, &cols, &weights)?;
     let params = LeidenParams {
+        objective: Objective::Modularity,
         resolution,
         beta,
         n_iterations,
@@ -326,6 +327,7 @@ fn _leiden_many<'py>(
         .iter()
         .flat_map(|&resolution| {
             seeds.iter().map(move |&seed| LeidenParams {
+                objective: Objective::Modularity,
                 resolution,
                 beta,
                 n_iterations,
@@ -345,6 +347,68 @@ fn _leiden_many<'py>(
     Ok(Array2::from_shape_vec((runs.len(), n), out)
         .map_err(value_err)?
         .into_pyarray(py))
+}
+
+/// `costal.leiden`: Leiden on an external COO edge list (each edge once, or a symmetric list);
+/// returns (membership as int64 labels 0.., quality at the resolution, n_clusters, iterations,
+/// converged). `initial` labels must already be compact (below n).
+#[pyfunction]
+#[pyo3(signature = (n, rows, cols, weights, *, objective, resolution, beta, n_iterations, seed, initial=None, n_threads=None))]
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)]
+fn _leiden_coo<'py>(
+    py: Python<'py>,
+    n: usize,
+    rows: PyReadonlyArray1<'py, u32>,
+    cols: PyReadonlyArray1<'py, u32>,
+    weights: PyReadonlyArray1<'py, f64>,
+    objective: &str,
+    resolution: f64,
+    beta: f64,
+    n_iterations: i32,
+    seed: u64,
+    initial: Option<PyReadonlyArray1<'py, u32>>,
+    n_threads: Option<usize>,
+) -> PyResult<(Bound<'py, PyArray1<i64>>, f64, usize, usize, bool)> {
+    let objective = match objective {
+        "modularity" => Objective::Modularity,
+        "cpm" => Objective::Cpm,
+        other => {
+            return Err(value_err(format!(
+                "objective must be 'modularity' or 'cpm', got {other:?}"
+            )))
+        }
+    };
+    let r = rows.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    let c = cols.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    let w = weights.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?;
+    let init = match &initial {
+        Some(a) => Some(a.as_slice().map_err(|_| value_err(NOT_CONTIGUOUS))?),
+        None => None,
+    };
+    let params = LeidenParams {
+        objective,
+        resolution,
+        beta,
+        n_iterations,
+        seed,
+    };
+    let (p, q) = py
+        .detach(|| {
+            with_threads(n_threads, || {
+                let g = Csr::from_coo(n, r, c, w)?;
+                let p = match init {
+                    Some(m) => leiden::leiden_from(&g, &params, m)?,
+                    None => leiden::leiden(&g, &params)?,
+                };
+                let q = leiden::quality(&g, &p.membership, objective, resolution)?;
+                Ok::<_, String>((p, q))
+            })
+        })?
+        .map_err(value_err)?;
+    let (k, it, conv) = (p.n_clusters, p.iterations, p.converged);
+    let labels: Vec<i64> = p.membership.iter().map(|&x| x as i64).collect();
+    Ok((Array1::from_vec(labels).into_pyarray(py), q, k, it, conv))
 }
 
 /// Modularity of a membership at resolution γ on an upper-triangular edge list.
@@ -394,6 +458,7 @@ fn _costal(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_leiden, m)?)?;
     m.add_function(wrap_pyfunction!(_leiden_many, m)?)?;
     m.add_function(wrap_pyfunction!(_modularity, m)?)?;
+    m.add_function(wrap_pyfunction!(_leiden_coo, m)?)?;
     m.add_function(wrap_pyfunction!(l2_bytes_per_thread, m)?)?;
     m.add_function(wrap_pyfunction!(tile_budget_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(default_matmul, m)?)?;

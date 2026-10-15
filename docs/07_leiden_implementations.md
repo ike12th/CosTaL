@@ -201,7 +201,8 @@ differ. On Levine_32 their accuracy is the same (§1).
 ## 5. CosTaL's own Leiden: `leiden="fast"` (implemented 2026-10-14)
 
 `crates/costal-core/src/leiden.rs`; `leiden="fast"` in `find_communities` and (the default)
-`find_communities_multiscale`. igraph's implementation stays available as `leiden="igraph"`, and
+`find_communities_multiscale`, and `costal.leiden(n_nodes, rows, cols, weights, …)` for any
+edge list, with modularity or CPM (user guide §6). igraph's implementation stays available as `leiden="igraph"`, and
 `leiden="paper"` keeps calling leidenalg: bit-identical leidenalg partitions would require
 reproducing its RNG, candidate order, renumbering and multigraph aggregation, i.e. following its GPL
 code line by line.

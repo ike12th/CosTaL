@@ -100,6 +100,92 @@ impl Csr {
         Ok(Csr { indptr, nbr, w: ww })
     }
 
+    /// From a COO edge list given either way an undirected graph is usually stored: each edge
+    /// once, in either orientation, or every edge in both directions with equal weights (a
+    /// symmetric sparse matrix). Anything else is an error rather than a guess:
+    /// - an orientation listed twice for the same pair, whatever the weights;
+    /// - both directions of a pair with different weights;
+    /// - some pairs in both directions and others once;
+    /// - self-loops, out-of-range nodes, negative or non-finite weights.
+    ///
+    /// Edges of weight 0 are dropped, as in [`Csr::from_edges`].
+    pub fn from_coo(n: usize, rows: &[u32], cols: &[u32], w: &[f64]) -> Result<Csr, String> {
+        if rows.len() != cols.len() || rows.len() != w.len() {
+            return Err(format!(
+                "edge arrays differ in length: {} rows, {} cols, {} weights",
+                rows.len(),
+                cols.len(),
+                w.len()
+            ));
+        }
+        // (lower node, higher node, listed as lower → higher, entry)
+        let mut keyed: Vec<(u32, u32, bool, u32)> = Vec::with_capacity(rows.len());
+        for e in 0..rows.len() {
+            let (i, j, x) = (rows[e], cols[e], w[e]);
+            if i as usize >= n || j as usize >= n {
+                return Err(format!("edge {e} ({i}, {j}) is out of range (n={n})"));
+            }
+            if i == j {
+                return Err(format!("edge {e} is a self-loop on node {i}"));
+            }
+            if !(x.is_finite() && x >= 0.0) {
+                return Err(format!(
+                    "edge {e} has weight {x}; weights must be finite and non-negative"
+                ));
+            }
+            keyed.push((i.min(j), i.max(j), i < j, e as u32));
+        }
+        keyed.sort_unstable();
+        let (mut once, mut both) = (0usize, 0usize);
+        let (mut lo, mut hi, mut ww) = (Vec::new(), Vec::new(), Vec::new());
+        let mut t = 0;
+        while t < keyed.len() {
+            let (a, b, up, e) = keyed[t];
+            let same_pair = |k: usize| k < keyed.len() && keyed[k].0 == a && keyed[k].1 == b;
+            let mut k = t + 1;
+            while same_pair(k) {
+                k += 1;
+            }
+            match k - t {
+                1 => once += 1,
+                2 if keyed[t + 1].2 != up => {
+                    let other = keyed[t + 1].3 as usize;
+                    if w[e as usize] != w[other] {
+                        return Err(format!(
+                            "edges {e} and {other} list the pair ({a}, {b}) in both directions \
+                             with different weights ({} and {})",
+                            w[e as usize], w[other]
+                        ));
+                    }
+                    both += 1;
+                }
+                _ => {
+                    return Err(format!(
+                        "the pair ({a}, {b}) is listed more than once in the same direction \
+                         (edges {}); combine duplicates before calling",
+                        keyed[t..k]
+                            .iter()
+                            .map(|x| x.3.to_string())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+            }
+            if once > 0 && both > 0 {
+                return Err(
+                    "some pairs are listed in both directions and others once: give each edge \
+                     once, or every edge in both directions (a symmetric matrix)"
+                        .into(),
+                );
+            }
+            lo.push(a);
+            hi.push(b);
+            ww.push(w[e as usize]);
+            t = k;
+        }
+        Csr::from_edges(n, &lo, &hi, &ww)
+    }
+
     /// Number of nodes.
     pub fn n(&self) -> usize {
         self.indptr.len() - 1
@@ -122,10 +208,23 @@ impl Csr {
     }
 }
 
+/// The quality function Leiden optimizes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Objective {
+    /// Modularity with resolution γ (leidenalg's `RBConfigurationVertexPartition`): node weights
+    /// are the strengths k_i, and a pair costs γ k_i k_j / 2m.
+    #[default]
+    Modularity,
+    /// The constant Potts model (leidenalg's `CPMVertexPartition`): every node weighs 1, and a pair
+    /// costs γ.
+    Cpm,
+}
+
 /// Leiden settings.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LeidenParams {
-    /// Modularity resolution γ (≥ 0).
+    pub objective: Objective,
+    /// Resolution γ (≥ 0).
     pub resolution: f64,
     /// Randomness of the refinement (the paper's θ, igraph's β), in edge-weight units; 0.01 in
     /// both references.
@@ -138,6 +237,7 @@ pub struct LeidenParams {
 impl Default for LeidenParams {
     fn default() -> Self {
         LeidenParams {
+            objective: Objective::Modularity,
             resolution: 1.0,
             beta: 0.01,
             n_iterations: 2,
@@ -166,8 +266,24 @@ pub const MAX_ITERATIONS: usize = 1000;
 pub fn leiden(g: &Csr, p: &LeidenParams) -> Result<Partition, String> {
     let mut membership = vec![0u32; g.n()];
     let ws = &mut Workspace::default();
-    let info = run(g, &g.strengths(), p, None, true, ws, &mut membership)?;
+    let info = run(
+        g,
+        &node_weights(g, p.objective),
+        p,
+        None,
+        true,
+        ws,
+        &mut membership,
+    )?;
     Ok(info.with(membership))
+}
+
+/// Node weights of the objective: the strengths for modularity, 1 for CPM.
+fn node_weights(g: &Csr, objective: Objective) -> Vec<f64> {
+    match objective {
+        Objective::Modularity => g.strengths(),
+        Objective::Cpm => vec![1.0; g.n()],
+    }
 }
 
 /// Run Leiden on `g`, starting from `initial` (labels below the node count).
@@ -176,7 +292,7 @@ pub fn leiden_from(g: &Csr, p: &LeidenParams, initial: &[u32]) -> Result<Partiti
     let ws = &mut Workspace::default();
     let info = run(
         g,
-        &g.strengths(),
+        &node_weights(g, p.objective),
         p,
         Some(initial),
         true,
@@ -232,7 +348,22 @@ fn many_into(
     if n == 0 {
         return runs.iter().map(run_empty).collect();
     }
-    let nw = g.strengths();
+    // Node weights for each objective the runs use, computed once
+    let uses = |o: Objective| runs.iter().any(|p| p.objective == o);
+    let strengths = if uses(Objective::Modularity) {
+        g.strengths()
+    } else {
+        Vec::new()
+    };
+    let ones = if uses(Objective::Cpm) {
+        vec![1.0; n]
+    } else {
+        Vec::new()
+    };
+    let nw_of = |o: Objective| match o {
+        Objective::Modularity => &strengths[..],
+        Objective::Cpm => &ones[..],
+    };
     let rows: Vec<Mutex<&mut [u32]>> = out.chunks_mut(n).map(Mutex::new).collect();
     let next = AtomicUsize::new(0);
     let tasks = threads.clamp(1, runs.len().max(1));
@@ -249,7 +380,8 @@ fn many_into(
                     break mine;
                 }
                 let mut row = rows[i].lock().expect("each row is taken once");
-                mine.push((i, run(g, &nw, &runs[i], None, inner, &mut ws, &mut row[..])));
+                let (p, nw) = (&runs[i], nw_of(runs[i].objective));
+                mine.push((i, run(g, nw, p, None, inner, &mut ws, &mut row[..])));
             }
         })
         .collect();
@@ -280,6 +412,38 @@ impl RunInfo {
             n_clusters: self.n_clusters,
             iterations: self.iterations,
             converged: self.converged,
+        }
+    }
+}
+
+/// The objective's value for `membership` at resolution γ: [`modularity`] for modularity, and for
+/// CPM Σ_{i≠j} (A_ij − γ) δ(c_i, c_j) = Σ_c [2 w_c − γ n_c (n_c − 1)], with w_c the weight of the
+/// edges inside cluster c and n_c its size (exactly leidenalg's `CPMVertexPartition.quality()`).
+pub fn quality(
+    g: &Csr,
+    membership: &[u32],
+    objective: Objective,
+    resolution: f64,
+) -> Result<f64, String> {
+    match objective {
+        Objective::Modularity => modularity(g, membership, resolution),
+        Objective::Cpm => {
+            let n = g.n();
+            check_labels(membership, n)?;
+            let mut size = vec![0f64; n];
+            let mut internal = 0f64; // both directions of every internal edge
+            for v in 0..n {
+                let c = membership[v];
+                size[c as usize] += 1.0;
+                let (nb, ws) = g.row(v);
+                for (&u, &x) in nb.iter().zip(ws) {
+                    if membership[u as usize] == c {
+                        internal += x;
+                    }
+                }
+            }
+            let pairs: f64 = size.iter().map(|&s| s * (s - 1.0)).sum(); // ordered pairs i ≠ j
+            Ok(internal - resolution * pairs)
         }
     }
 }
@@ -370,7 +534,11 @@ fn run(
     let (mut iterations, mut converged) = (0, true);
     // Without edges modularity is undefined, and nothing moves
     if total > 0.0 {
-        let gamma = p.resolution / total;
+        // Both objectives are CPM on the node weights; modularity scales γ by 1/2m
+        let gamma = match p.objective {
+            Objective::Modularity => p.resolution / total,
+            Objective::Cpm => p.resolution,
+        };
         let max_it = if p.n_iterations > 0 {
             p.n_iterations as usize
         } else {
@@ -1383,6 +1551,118 @@ mod tests {
         assert!(Csr::from_edges(2, &[0, 1], &[1], &[1.0])
             .unwrap_err()
             .contains("length"));
+    }
+
+    #[test]
+    fn coo_accepts_each_edge_once_or_a_symmetric_list() {
+        let upper = csr(4, &[(0, 1, 0.5), (1, 2, 1.0), (1, 3, 0.25)]);
+        let once = Csr::from_coo(4, &[0, 2, 1], &[1, 1, 3], &[0.5, 1.0, 0.25]).unwrap();
+        let both = Csr::from_coo(
+            4,
+            &[0, 1, 2, 1, 1, 3],
+            &[1, 0, 1, 2, 3, 1],
+            &[0.5, 0.5, 1.0, 1.0, 0.25, 0.25],
+        )
+        .unwrap();
+        assert_eq!(once, upper);
+        assert_eq!(both, upper);
+    }
+
+    #[test]
+    fn coo_rejects_what_it_cannot_read_unambiguously() {
+        let err = |r: &[u32], c: &[u32], w: &[f64]| Csr::from_coo(3, r, c, w).unwrap_err();
+        // The same orientation twice is an error even with equal weights
+        assert!(err(&[0, 0], &[1, 1], &[1.0, 1.0]).contains("same direction"));
+        assert!(err(&[0, 0], &[1, 1], &[1.0, 2.0]).contains("same direction"));
+        assert!(err(&[0, 1], &[1, 0], &[1.0, 2.0]).contains("different weights"));
+        assert!(err(&[0, 1, 1], &[1, 0, 2], &[1.0, 1.0, 1.0]).contains("others once"));
+        assert!(err(&[0], &[0], &[1.0]).contains("self-loop"));
+        assert!(err(&[0], &[3], &[1.0]).contains("out of range"));
+        assert!(err(&[0], &[1], &[f64::NAN]).contains("weight"));
+        assert!(err(&[0], &[1], &[-1.0]).contains("weight"));
+        assert!(err(&[0, 1], &[1], &[1.0]).contains("length"));
+    }
+
+    #[test]
+    fn cpm_quality_matches_its_definition() {
+        // Σ_c [2 w_c − γ n_c (n_c − 1)]
+        let g = csr(
+            6,
+            &[
+                (0, 1, 0.3),
+                (0, 2, 0.9),
+                (1, 2, 0.4),
+                (2, 3, 0.2),
+                (3, 4, 0.7),
+                (3, 5, 0.6),
+                (4, 5, 0.8),
+            ],
+        );
+        let q = |m: &[u32], res: f64| quality(&g, m, Objective::Cpm, res).unwrap();
+        let expected = 2.0 * (0.3 + 0.9 + 0.4 + 0.7 + 0.6 + 0.8) - 0.1 * (6.0 + 6.0);
+        assert!((q(&[0, 0, 0, 1, 1, 1], 0.1) - expected).abs() < 1e-14);
+        assert!((q(&[0, 1, 2, 3, 4, 5], 0.1)).abs() < 1e-14);
+        assert!((q(&[0; 6], 0.2) - (2.0 * 3.9 - 0.2 * 30.0)).abs() < 1e-14);
+        let modularity_q = quality(&g, &[0, 0, 0, 1, 1, 1], Objective::Modularity, 1.0).unwrap();
+        assert_eq!(
+            modularity_q,
+            modularity(&g, &[0, 0, 0, 1, 1, 1], 1.0).unwrap()
+        );
+    }
+
+    #[test]
+    fn cpm_recovers_a_planted_partition_and_is_gamma_separated() {
+        let cpm = |res: f64, seed: u64| LeidenParams {
+            objective: Objective::Cpm,
+            ..params(res, seed)
+        };
+        // At least as good as the planted blocks (not necessarily equal: a node whose edges into
+        // its block weigh less than γ times the block's size is better off alone under CPM)
+        let g = planted(8, 40, 0.3, 300, 3);
+        let truth: Vec<u32> = (0..320).map(|v| (v / 40) as u32).collect();
+        for &res in &[0.02, 0.05] {
+            let found = leiden(&g, &cpm(res, 1)).unwrap();
+            let q = |m: &[u32]| quality(&g, m, Objective::Cpm, res).unwrap();
+            assert!(q(&found.membership) >= q(&truth) - 1e-9, "γ {res}");
+            assert!(
+                found.n_clusters <= 10,
+                "γ {res}: {} clusters",
+                found.n_clusters
+            );
+        }
+        // No two adjacent clusters gain from merging: w(C1, C2) − γ n1 n2 ≤ 0
+        let g = planted(12, 40, 0.1, 400, 7);
+        for &res in &[0.01, 0.05, 0.2] {
+            let p = leiden(&g, &cpm(res, 0)).unwrap();
+            assert!(clusters_are_connected(&g, &p.membership));
+            let mut size = std::collections::HashMap::<u32, f64>::new();
+            for &c in &p.membership {
+                *size.entry(c).or_default() += 1.0;
+            }
+            let mut between = std::collections::HashMap::<(u32, u32), f64>::new();
+            for v in 0..g.n() {
+                let (nb, ws) = g.row(v);
+                for (&u, &x) in nb.iter().zip(ws) {
+                    let (a, b) = (p.membership[v], p.membership[u as usize]);
+                    if a < b {
+                        *between.entry((a, b)).or_default() += x;
+                    }
+                }
+            }
+            for (&(a, b), &w) in &between {
+                assert!(w - res * size[&a] * size[&b] <= 1e-12, "γ {res}");
+            }
+        }
+        // Thread-count independence holds for CPM as well
+        let g = planted(400, 25, 0.25, 6000, 9);
+        let run = |threads: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| leiden(&g, &cpm(0.1, 4)).unwrap())
+        };
+        assert_eq!(run(1), run(8));
     }
 
     #[test]
