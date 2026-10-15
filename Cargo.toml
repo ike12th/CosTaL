@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/costal-core", "crates/costal-py"]
 
 [workspace.package]
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.83"
 license = "MIT"
@@ -11,7 +11,7 @@ repository = "https://github.com/ike12th/CosTaL"
 authors = ["Yijia Li"]
 
 [workspace.dependencies]
-costal-core = { path = "crates/costal-core", version = "2.0.0" }
+costal-core = { path = "crates/costal-core", version = "2.1.0" }
 
 [profile.release]
 opt-level = 3

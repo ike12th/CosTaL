@@ -49,7 +49,9 @@ Publishing the release runs two jobs of `wheels.yml` on the wheels and the sdist
 **If PyPI access is not ready** (2026-10: the account that owns the `CosTaL` project, `li000678`, is
 in account recovery with the PyPI admins, pypi/support), the release can still go out: `attach`
 succeeds and `publish` fails. Until PyPI has 2.0, users install it from the release with
-`pip install --upgrade CosTaL --find-links https://github.com/ike12th/CosTaL/releases/expanded_assets/v2.0.0`.
+`pip install --upgrade CosTaL --find-links https://github.com/ike12th/CosTaL/releases/expanded_assets/<tag>`
+(e.g. `v2.1.0`). Keep that note out of the README at the tagged commit: the README is the PyPI
+project description of the files built from the tag, and the note would go stale there.
 Once the trusted publisher is set up, open that workflow run and *Re-run failed jobs*: `publish`
 uploads the same files, built from the tag, to PyPI. Check https://pypi.org/project/CosTaL/ and, in a fresh environment:
 

@@ -4,7 +4,7 @@ All notable changes to CosTaL. Versions follow [semantic versioning](https://sem
 project rule (docs/04 §6.5): **changing what any default does is a major version**, and
 `compat="paper"` — the method exactly as published — is never removed.
 
-## Unreleased (2.1.0)
+## 2.1.0 — 2026-10-14
 
 ### Added
 
